@@ -1,0 +1,52 @@
+# macOS and editor state
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Installed dependencies and generated builds
+node_modules/
+dist/
+coverage/
+/app/native/embedding-helper
+*.log
+*.tsbuildinfo
+
+# Memo databases, backups and Electron browser/session data
+.dev-data/
+backups/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.db3
+*.dmg
+*.app/
+
+# Local credentials and personal agent configuration
+.env
+.env.*
+!.env.example
+.codex/
+.claude/
+.agents/
+.aws/
+.ssh/
+auth.json
+credentials.json
+tokens.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Working history, reference concepts and generated evaluation output
+/docs/internal/
+/app/eval/results/
+/app/eval/*-report.json
+/app/eval/*-prepared.json
+/app/eval/memory-baseline.json
+/local/
+*.zip

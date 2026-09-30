@@ -1,0 +1,17 @@
+.boot-sequence{position:fixed;inset:0;z-index:12;display:grid;place-items:center;pointer-events:none;overflow:hidden;isolation:isolate;animation:boot-finish 980ms ease-out both}
+.boot-sequence::before{content:'';position:absolute;width:min(60vw,850px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#afcad019 0%,#668ca00a 38%,transparent 70%);animation:boot-glow 980ms ease-out both}
+.boot-trails{position:absolute;width:min(96vw,1250px);height:min(70vh,520px);overflow:visible;filter:drop-shadow(0 0 7px #c5e4ef59)}
+.boot-trail{stroke:#d8e8ea;stroke-width:1.2;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:.8;animation:boot-trace 650ms cubic-bezier(.2,.7,.2,1) forwards}
+.boot-trail-b{stroke-width:.55;opacity:.43;animation-delay:60ms}.boot-trail-c{stroke-width:.8;opacity:.58;animation-delay:95ms}.boot-trail-d{stroke-width:.7;opacity:.48;animation-delay:130ms}.boot-trail-e{stroke-width:.5;opacity:.35;animation-delay:165ms}
+.boot-particle{fill:#e2f1f2;opacity:0;animation:boot-spark 750ms ease-out 80ms both}
+.boot-particle:nth-last-child(3n){animation-delay:160ms}
+.boot-lockup{position:relative;display:flex;align-items:center;gap:17px;color:#edf4f2;transform:translateY(-2px);animation:boot-arrive 980ms cubic-bezier(.2,.7,.2,1) both}
+.boot-lockup svg{width:90px;height:60px;filter:drop-shadow(0 0 10px #dfedf070)}
+.boot-lockup span{font-size:clamp(25px,3vw,40px);font-weight:300;letter-spacing:.28em;padding-bottom:6px}
+@keyframes boot-trace{to{stroke-dashoffset:0}}
+@keyframes boot-spark{0%,15%{opacity:0}50%{opacity:.85}100%{opacity:0}}
+@keyframes boot-arrive{0%,25%{opacity:0;transform:translateY(9px) scale(.95)}50%,77%{opacity:1;transform:translateY(-2px) scale(1)}100%{opacity:0;transform:translateY(-7px) scale(1.01)}}
+@keyframes boot-glow{0%{opacity:0;transform:scale(.75)}52%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
+@keyframes boot-finish{0%,72%{opacity:1}100%{opacity:0}}
+html[data-reduced="true"] .boot-sequence{display:none}
+@media(prefers-reduced-motion:reduce){.boot-sequence{display:none}}

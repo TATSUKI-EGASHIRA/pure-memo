@@ -1,0 +1,16 @@
+.native-hero-art.hero-data-art{mask-image:none;opacity:1;display:grid;place-items:center;pointer-events:none}
+.hero-data-drawing{width:min(100%,390px);color:#99b8c4;opacity:.82}
+.hero-data-drawing svg{display:block;width:100%;height:auto;overflow:visible}
+.hero-data-drawing>span{display:block;text-align:center;font:9px 'SFMono-Regular',Consolas,monospace;letter-spacing:.12em;color:#8daab9;margin-top:-9px}
+.hero-halo{fill:none;stroke:#8cb1c01c;stroke-width:1}
+.hero-core{fill:#abcbd610;stroke:#b5d3da88;stroke-width:1}
+.hero-core-center,.hero-node,.hero-query-dot{fill:#d5e4e5}
+.hero-link,.hero-route{fill:none;stroke:#a2c5d080;stroke-width:1;stroke-linecap:round}
+.hero-link-pending{stroke-dasharray:3 7;opacity:.5}
+.hero-node-ring{fill:#172a38;stroke:#b4d0d595;stroke-width:1}
+.hero-node-label{fill:#a4bdc5;font:10px 'DM Sans','Noto Sans JP',sans-serif}
+.hero-query-ring{fill:none;stroke:#a9cbd05c;stroke-width:1}
+.hero-query-ring-outer{stroke-dasharray:2 7;stroke:#a9cbd06a}
+.native-app .native-hero.native-hero-quiet{min-height:175px}
+@media(max-width:1000px){.native-app .native-hero-art.hero-data-art{display:none}}
+@media(max-width:700px){.hero-data-drawing{width:210px;opacity:.45}.hero-data-drawing>span{display:none}.native-app .native-hero.native-hero-quiet{min-height:150px}}

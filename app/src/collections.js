@@ -1,0 +1,19 @@
+// Deliberately local preview logic. This module does not call an AI service.
+export const musicSamples=[
+{id:'music-night',text:'夜の散歩では、歌詞のないアンビエントをよく聴く。街の音が少し残るくらいが心地いい。',title:'夜の散歩とアンビエント',group:'Music',date:'2026-09-26T22:15:00',x:575,y:110},
+{id:'music-focus',text:'作業用の音楽は、気が散らないものがいい。ピアノと環境音を集めたプレイリストを作ってみたい。',title:'作業用のプレイリスト',group:'Music',date:'2026-09-24T10:10:00',x:640,y:185}
+];
+export const categories=[
+{id:'Films',number:'01',description:'Stories that stay with you.',match:/映画|PERFECT DAYS|パターソン|鑑賞/},
+{id:'Music',number:'02',description:'Sounds for your everyday.',match:/音楽|アンビエント|プレイリスト|ピアノ|歌詞|聴く/},
+{id:'Hobbies',number:'03',description:'Small things worth returning to.',match:/喫茶店|コーヒー|散歩|図書館|植物|海|秋|風景|窓|静かな場所|一人で過ごす/},
+{id:'Projects',number:'04',description:'An idea, a little closer.',match:/作りたい|作って|作る|アプリ|仕組み|開く喫茶店|企画|プロジェクト|本にしたい/}
+];
+const specs={
+Films:{sources:['film','watch','cinema'],summary:'『PERFECT DAYS』で感じた日常の豊かさ、夜の映画館の余韻、次に観たい『パターソン』が残されています。',headline:'物語のあとにも続く、日常の余韻。',observation:'作品の内容だけでなく、観終わったあとの静けさや、日々を言葉にすることへの関心がうかがえます。',evidence:['film','watch'],actions:[{id:'films-paterson',title:'『パターソン』を観たいリストの次の一本に',why:'「観たい」と明示した記録があります。鑑賞時期はまだ決めず、次の候補として残せます。',sources:['watch'],steps:['観られる配信サービスや上映情報を自分で確認する。','観終わったら、日常の描かれ方で残った場面を一つ書く。'],kind:'Watchlist'},{id:'films-compare',title:'『PERFECT DAYS』の、残っている一場面を書く',why:'すでに観た作品の感想を、曖昧な印象から具体的な記憶へ深められます。',sources:['film'],steps:['いちばん記憶に残っている場面：','その場面が自分の日常と重なるところ：'],kind:'Reflection'}],question:'作品全体と、観終わったあとの時間。どちらに惹かれたのかは、まだ分かりません。'},
+Music:{sources:['music-night','music-focus'],summary:'夜の散歩では歌詞のないアンビエント、作業中はピアノや環境音。場面に合う、気が散らない音楽を探しています。',headline:'音楽を、時間の過ごし方から選んでいる。',observation:'特定のアーティストより、「街の音が残る」「気が散らない」といった聴き心地が、選ぶ基準になっているようです。',evidence:['music-night','music-focus'],actions:[{id:'music-playlist',title:'「集中する時間」のプレイリストを3曲から作る',why:'ピアノと環境音のプレイリストを作りたい、という意図が書かれています。',sources:['music-focus'],steps:['思い浮かぶピアノ曲を一つ：','環境音が入った曲を一つ：','もう一度聴きたい曲を一つ：','実際に作業して、気が散った箇所をメモする。'],kind:'Try it'},{id:'music-walk',title:'次の散歩で、音量を少し下げて聴き比べる',why:'街の音を残したいという好みに沿った、小さな実験です。',sources:['music-night'],steps:['聴いた曲：','聞こえた街の音：','心地よかった音量や場所：'],kind:'Experiment'}],question:'具体的な曲名の記録はまだありません。曲やアーティストの推薦には、もう少し材料が必要です。'},
+Hobbies:{sources:['rain','cafe','coffee','library'],summary:'喫茶店、朝のコーヒー、図書館の窓際。気持ちが落ち着く場所と、そこで過ごす時間の記録が集まっています。',headline:'「どこへ行くか」より、どう過ごせるか。',observation:'静けさ、窓、コーヒーなど、場所の設備よりもその場で感じる心地よさが繰り返し登場します。',evidence:['cafe','library','coffee'],actions:[{id:'hobbies-cafe',title:'気になる喫茶店で、好きだったことを3つ残す',why:'近所にもこういう場所を見つけたい、という記録からの提案です。店名や現在地はまだ分かりません。',sources:['cafe'],steps:['訪れた場所：','好きだった音・光・匂い：','もう一度来たいと思った理由：'],kind:'Explore'},{id:'hobbies-routine',title:'朝のコーヒーで、今日の一行を書く',why:'いつもの習慣を、その日の小さな発見を残す入口にできます。',sources:['coffee'],steps:['今朝、気づいたこと：'],kind:'Ritual'}],question:'喫茶店を実際に開きたいのか、そんな場所に通いたいのかは区別が必要です。'},
+Projects:{sources:['rain','habit','book'],summary:'雨の日の喫茶店、習慣を続けるアプリ、好きな文章を集めた小さな本。形にしたいことの粒度は、まだそれぞれ異なります。',headline:'まず一つ、小さく形にしてみる。',observation:'日常の楽しみや記録を、場所や道具にしたいという接点が見えます。ただし、三つを一つの企画にまとめる根拠は十分ではありません。',evidence:['rain','habit','book'],actions:[{id:'projects-app',title:'習慣アプリの「最初の一画面」を言葉にする',why:'記録すること自体を楽しみにしたい、という狙いがすでにあります。まず利用する一場面へ具体化できます。',sources:['habit'],steps:['いつ、誰が開く？','最初にする操作は？','使った直後に、どう感じてほしい？'],kind:'Prototype'},{id:'projects-book',title:'小さな本のために、好きな文章を3つ選ぶ',why:'本の仕様を決める前に、材料を選ぶところから始められます。',sources:['book'],steps:['選んだ文章 1：','選んだ文章 2：','選んだ文章 3：','3つに共通するもの：'],kind:'Collect'}],question:'着手する企画、使える時間、予算はまだ未確定です。計画や締め切りを勝手に決めません。'}
+};
+export function membersFor(notes,id){const c=categories.find(c=>c.id===id);return notes.filter(n=>!n.origin&&c.match.test(n.text));}
+export function reportFor(notes,id,originals){const spec=specs[id];const valid=ids=>ids.every(k=>notes.find(n=>n.id===k)?.text===originals.find(n=>n.id===k)?.text);return {...spec,available:valid(spec.sources),actions:spec.actions.filter(a=>valid(a.sources))};}

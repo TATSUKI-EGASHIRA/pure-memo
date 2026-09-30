@@ -1,0 +1,1024 @@
+const { DatabaseSync, backup } = require('node:sqlite');
+const { randomUUID, createHash } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const {retryDelay}=require('./job-policy.cjs');
+const MAX_IMAGE_BYTES=8*1024*1024;
+function savedSourceCanPreview(originKind){return originKind!=='generated';}
+function firstSourceUrl(body){
+  const raw=(body.match(/https?:\/\/[^\s<>"']+/i)?.[0]||'').replace(/[.,、。!?！？，）)\]]+$/,'').slice(0,2048);
+  if(!raw)return '';
+  try{const url=new URL(raw);return ['http:','https:'].includes(url.protocol)?url.href:'';}catch{return '';}
+}
+function decodeImage(input){
+  const mediaType=String(input?.mediaType||'');
+  const encoded=input?.dataBase64;
+  if(!['image/png','image/jpeg','image/gif','image/webp'].includes(mediaType)||typeof encoded!=='string'||!encoded||encoded.length>Math.ceil(MAX_IMAGE_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw new Error('Use a PNG, JPEG, GIF or WebP image up to 8 MB.');
+  const bytes=Buffer.from(encoded,'base64');
+  if(!bytes.length||bytes.length>MAX_IMAGE_BYTES||bytes.toString('base64')!==encoded)throw new Error('Invalid image data.');
+  const signature=mediaType==='image/png'?bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')):
+    mediaType==='image/jpeg'?bytes.subarray(0,3).equals(Buffer.from('ffd8ff','hex')):
+    mediaType==='image/gif'?['GIF87a','GIF89a'].includes(bytes.subarray(0,6).toString('ascii')):
+    bytes.subarray(0,4).toString('ascii')==='RIFF'&&bytes.subarray(8,12).toString('ascii')==='WEBP';
+  if(!signature)throw new Error('Image content does not match its format.');
+  return {bytes,mediaType,fileName:String(input.fileName||'Image').slice(0,120)};
+}
+
+class Store {
+  constructor(file) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    this.file = file;
+    this.db = new DatabaseSync(file);
+    this.db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000; PRAGMA secure_delete = ON;');
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id TEXT PRIMARY KEY, current_revision_id TEXT, created_at TEXT NOT NULL,
+        origin_kind TEXT NOT NULL DEFAULT 'human', is_demo INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT
+      );
+      CREATE TABLE IF NOT EXISTS purged_notes (
+        id TEXT PRIMARY KEY, purged_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS note_revisions (
+        id TEXT PRIMARY KEY, note_id TEXT NOT NULL REFERENCES notes(id),
+        body TEXT NOT NULL, created_at TEXT NOT NULL,
+        source_kind TEXT NOT NULL DEFAULT 'unspecified', source_url TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE IF NOT EXISTS article_previews (
+        revision_id TEXT PRIMARY KEY REFERENCES note_revisions(id),
+        status TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '', site_name TEXT NOT NULL DEFAULT '',
+        fetched_at TEXT, error TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE IF NOT EXISTS attachments (
+        id TEXT PRIMARY KEY, note_id TEXT NOT NULL REFERENCES notes(id),
+        media_type TEXT NOT NULL, file_name TEXT NOT NULL, content_hash TEXT NOT NULL,
+        bytes BLOB NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_attachments_note ON attachments(note_id);
+      CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS category_revisions (
+        id TEXT PRIMARY KEY, category_id TEXT NOT NULL REFERENCES categories(id),
+        name TEXT NOT NULL, origin TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS category_transitions (
+        id TEXT PRIMARY KEY, kind TEXT NOT NULL,
+        source_category_id TEXT NOT NULL REFERENCES categories(id),
+        target_category_id TEXT NOT NULL REFERENCES categories(id),
+        moved_count INTEGER NOT NULL, skipped_count INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS assignments (
+        note_id TEXT NOT NULL REFERENCES notes(id), category_id TEXT NOT NULL REFERENCES categories(id),
+        revision_id TEXT NOT NULL REFERENCES note_revisions(id), origin TEXT NOT NULL,
+        PRIMARY KEY(note_id, category_id)
+      );
+      CREATE TABLE IF NOT EXISTS assignment_exclusions (
+        note_id TEXT NOT NULL REFERENCES notes(id), category_id TEXT NOT NULL REFERENCES categories(id),
+        revision_id TEXT NOT NULL REFERENCES note_revisions(id), created_at TEXT NOT NULL,
+        PRIMARY KEY(note_id, category_id)
+      );
+      CREATE TABLE IF NOT EXISTS runs (
+        id TEXT PRIMARY KEY, purpose TEXT NOT NULL, category_id TEXT,
+        model TEXT NOT NULL, prompt_version TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS outputs (
+        id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), kind TEXT NOT NULL,
+        text TEXT NOT NULL, category_id TEXT, status TEXT NOT NULL DEFAULT 'current',
+        analysis_status TEXT NOT NULL DEFAULT 'ready', parent_output_id TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS evidence (
+        output_id TEXT NOT NULL REFERENCES outputs(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        PRIMARY KEY(output_id, revision_id)
+      );
+      CREATE TABLE IF NOT EXISTS analysis_inputs (
+        run_id TEXT NOT NULL REFERENCES runs(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        PRIMARY KEY(run_id, revision_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_analysis_inputs_revision ON analysis_inputs(revision_id);
+      CREATE TABLE IF NOT EXISTS digest_claims (
+        id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(id), kind TEXT NOT NULL,
+        speaker TEXT NOT NULL, period TEXT NOT NULL, text TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS digest_claim_evidence (
+        claim_id TEXT NOT NULL REFERENCES digest_claims(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        relation TEXT NOT NULL, PRIMARY KEY(claim_id, revision_id, relation)
+      );
+      CREATE INDEX IF NOT EXISTS idx_digest_claims_run ON digest_claims(run_id);
+      CREATE TABLE IF NOT EXISTS answer_claims (
+        id TEXT PRIMARY KEY, output_id TEXT NOT NULL REFERENCES outputs(id), kind TEXT NOT NULL,
+        speaker TEXT NOT NULL, period TEXT NOT NULL, text TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS answer_claim_evidence (
+        claim_id TEXT NOT NULL REFERENCES answer_claims(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        PRIMARY KEY(claim_id, revision_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_answer_claims_output ON answer_claims(output_id);
+      CREATE TABLE IF NOT EXISTS feedback (
+        id TEXT PRIMARY KEY, output_id TEXT NOT NULL REFERENCES outputs(id),
+        rating TEXT NOT NULL, reason TEXT, comment TEXT, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS ask_questions (
+        id TEXT PRIMARY KEY, question TEXT NOT NULL, output_id TEXT NOT NULL REFERENCES outputs(id),
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS app_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS classification_jobs (
+        note_id TEXT PRIMARY KEY REFERENCES notes(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        model TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS digest_jobs (
+        category_id TEXT PRIMARY KEY REFERENCES categories(id), fingerprint TEXT NOT NULL,
+        model TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS note_embeddings (
+        revision_id TEXT PRIMARY KEY REFERENCES note_revisions(id), model TEXT NOT NULL,
+        vector BLOB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS retrieval_items (
+        run_id TEXT NOT NULL REFERENCES runs(id), revision_id TEXT NOT NULL REFERENCES note_revisions(id),
+        rank INTEGER NOT NULL, score REAL NOT NULL, method TEXT NOT NULL,
+        PRIMARY KEY(run_id, revision_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_evidence_revision ON evidence(revision_id);
+      CREATE INDEX IF NOT EXISTS idx_outputs_category ON outputs(category_id, created_at);
+    `);
+    const noteColumns=this.db.prepare('PRAGMA table_info(notes)').all().map(column=>column.name);
+    if(!noteColumns.includes('ai_excluded'))this.db.exec('ALTER TABLE notes ADD COLUMN ai_excluded INTEGER NOT NULL DEFAULT 0');
+    if(!noteColumns.includes('ai_access_version'))this.db.exec('ALTER TABLE notes ADD COLUMN ai_access_version INTEGER NOT NULL DEFAULT 0');
+    const runColumns=this.db.prepare('PRAGMA table_info(runs)').all().map(column=>column.name);
+    if(!runColumns.includes('ai_blocked'))this.db.exec('ALTER TABLE runs ADD COLUMN ai_blocked INTEGER NOT NULL DEFAULT 0');
+    if(!runColumns.includes('context_tracked'))this.db.exec('ALTER TABLE runs ADD COLUMN context_tracked INTEGER NOT NULL DEFAULT 0');
+    this.db.exec(`CREATE TABLE IF NOT EXISTS run_contexts (
+      run_id TEXT NOT NULL REFERENCES runs(id), source_run_id TEXT NOT NULL REFERENCES runs(id),
+      PRIMARY KEY(run_id,source_run_id)
+    )`);
+    if(!this.db.prepare('PRAGMA table_info(feedback)').all().some(c=>c.name==='comment')) this.db.exec('ALTER TABLE feedback ADD COLUMN comment TEXT');
+    const revisionColumns=this.db.prepare('PRAGMA table_info(note_revisions)').all().map(c=>c.name);
+    if(!revisionColumns.includes('source_kind'))this.db.exec("ALTER TABLE note_revisions ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'unspecified'");
+    if(!revisionColumns.includes('source_url'))this.db.exec("ALTER TABLE note_revisions ADD COLUMN source_url TEXT NOT NULL DEFAULT ''");
+    this.db.exec(`INSERT OR IGNORE INTO article_previews(revision_id,status)
+      SELECT r.id,'pending' FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0 AND r.source_url!=''`);
+    const outputColumns=this.db.prepare('PRAGMA table_info(outputs)').all().map(c=>c.name);
+    if(!outputColumns.includes('analysis_status'))this.db.exec("ALTER TABLE outputs ADD COLUMN analysis_status TEXT NOT NULL DEFAULT 'ready'");
+    if(!outputColumns.includes('parent_output_id'))this.db.exec('ALTER TABLE outputs ADD COLUMN parent_output_id TEXT');
+    const version=this.db.prepare('PRAGMA user_version').get().user_version;
+    if(version<3){
+      this.db.exec(`UPDATE categories SET state='unconfirmed' WHERE id!='all' AND state='active'
+        AND COALESCE((SELECT origin FROM category_revisions WHERE category_id=categories.id ORDER BY created_at DESC,rowid DESC LIMIT 1),'ai')!='human'`);
+      this.db.exec('PRAGMA user_version = 3');
+    }
+    this.db.prepare(`INSERT OR IGNORE INTO categories(id,name,created_at) VALUES('all','All notes',?)`).run(new Date().toISOString());
+    for(const table of ['classification_jobs','digest_jobs']){
+      const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(column=>column.name);
+      if(!columns.includes('token'))this.db.exec(`ALTER TABLE ${table} ADD COLUMN token TEXT NOT NULL DEFAULT ''`);
+      if(!columns.includes('retry_after'))this.db.exec(`ALTER TABLE ${table} ADD COLUMN retry_after INTEGER`);
+      this.db.exec(`UPDATE ${table} SET token=lower(hex(randomblob(16))) WHERE token=''`);
+      this.db.exec(`UPDATE ${table} SET token=lower(hex(randomblob(16))) WHERE state='running'`);
+    }
+    this.db.exec("UPDATE classification_jobs SET state='pending' WHERE state='running'");
+    this.db.exec("UPDATE digest_jobs SET state='pending' WHERE state='running'");
+    this.db.exec("UPDATE article_previews SET status='pending' WHERE status='running'");
+  }
+  tx(fn) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try { const value = fn(); this.db.exec('COMMIT'); return value; }
+    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+  listNotes() {
+    return this.db.prepare(`SELECT n.id, n.current_revision_id AS revisionId, r.body AS text,
+      n.created_at AS date, n.origin_kind AS originKind, n.is_demo AS isDemo,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,
+      r.source_kind AS sourceKind,r.source_url AS sourceUrl,
+      ap.status AS articleStatus,ap.title AS articleTitle,
+      ap.description AS articleDescription,ap.site_name AS articleSiteName,
+      ap.fetched_at AS articleFetchedAt,ap.error AS articleError
+      FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      LEFT JOIN article_previews ap ON ap.revision_id=r.id
+      WHERE n.deleted_at IS NULL ORDER BY n.created_at DESC`).all().map(n => ({...n, isDemo:!!n.isDemo,aiExcluded:!!n.aiExcluded, attachments:this.attachmentsFor(n.id)}));
+  }
+  listTrash() {
+    return this.db.prepare(`SELECT n.id, n.current_revision_id AS revisionId, r.body AS text,
+      n.created_at AS date, n.deleted_at AS deletedAt, n.origin_kind AS originKind, n.is_demo AS isDemo,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,
+      r.source_kind AS sourceKind,r.source_url AS sourceUrl
+      FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE n.deleted_at IS NOT NULL ORDER BY n.deleted_at DESC`).all().map(n=>({...n,isDemo:!!n.isDemo,aiExcluded:!!n.aiExcluded,attachments:this.attachmentsFor(n.id)}));
+  }
+  nextArticlePreviewJob(){
+    return this.db.prepare(`SELECT n.id AS noteId,r.id AS revisionId,r.source_url AS url
+      FROM article_previews ap JOIN note_revisions r ON r.id=ap.revision_id
+      JOIN notes n ON n.current_revision_id=r.id
+      WHERE ap.status='pending' AND n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0
+      ORDER BY n.created_at LIMIT 1`).get();
+  }
+  markArticlePreviewRunning(revisionId){
+    return !!this.db.prepare("UPDATE article_previews SET status='running' WHERE revision_id=? AND status='pending'").run(revisionId).changes;
+  }
+  finishArticlePreview(revisionId,preview){
+    return !!this.db.prepare(`UPDATE article_previews SET status='ready',title=?,description=?,site_name=?,fetched_at=?,error=''
+      WHERE revision_id=? AND status='running' AND EXISTS (
+        SELECT 1 FROM notes n WHERE n.current_revision_id=article_previews.revision_id AND n.deleted_at IS NULL
+      )`).run(String(preview.title||'').slice(0,300),String(preview.description||'').slice(0,600),String(preview.siteName||'').slice(0,120),new Date().toISOString(),revisionId).changes;
+  }
+  failArticlePreview(revisionId,error){
+    return !!this.db.prepare("UPDATE article_previews SET status='failed',error=? WHERE revision_id=? AND status='running'").run(String(error?.message||error||'Preview unavailable').slice(0,200),revisionId).changes;
+  }
+  retryArticlePreview(noteId){
+    return !!this.db.prepare(`UPDATE article_previews SET status='pending',error='' WHERE revision_id=(
+      SELECT current_revision_id FROM notes WHERE id=? AND deleted_at IS NULL
+    ) AND status='failed'`).run(noteId).changes;
+  }
+  articleUrl(noteId){
+    return this.db.prepare(`SELECT r.source_url AS url FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE n.id=? AND n.deleted_at IS NULL`).get(noteId)?.url||'';
+  }
+  attachmentsFor(noteId){
+    return this.db.prepare('SELECT id,media_type AS mediaType,file_name AS fileName,length(bytes) AS size FROM attachments WHERE note_id=? ORDER BY created_at,id').all(noteId);
+  }
+  readAttachment(id){
+    const row=this.db.prepare('SELECT a.id,a.media_type AS mediaType,a.bytes FROM attachments a JOIN notes n ON n.id=a.note_id WHERE a.id=? AND n.deleted_at IS NULL').get(id);
+    if(!row)throw new Error('Image not found.');
+    return {id:row.id,mediaType:row.mediaType,dataBase64:Buffer.from(row.bytes).toString('base64')};
+  }
+  removeAttachment(id){
+    return this.tx(()=>{
+      const row=this.db.prepare('SELECT a.note_id AS noteId,r.body FROM attachments a JOIN notes n ON n.id=a.note_id JOIN note_revisions r ON r.id=n.current_revision_id WHERE a.id=? AND n.deleted_at IS NULL').get(id);
+      if(!row)throw new Error('Image not found.');
+      if(!row.body.trim()&&this.attachmentsFor(row.noteId).length===1)throw new Error('Add text before removing the last image.');
+      this.db.prepare('DELETE FROM attachments WHERE id=?').run(id);
+      return row.noteId;
+    });
+  }
+  saveNote(input) {
+    if(input?.aiExcluded!==undefined&&typeof input.aiExcluded!=='boolean')throw new Error('AI解析の設定が不正です。');
+    const body = String(input?.text || '').trim();
+    const requestedKind=input?.sourceKind||'unspecified';
+    if(!['unspecified','thought','reference','quote'].includes(requestedKind))throw new Error('Invalid source type.');
+    const urlOnly=/^https?:\/\/[^\s]+$/i.test(body);
+    const sourceKind=requestedKind==='unspecified'&&urlOnly?'reference':requestedKind;
+    const sourceUrl=firstSourceUrl(body);
+    const incoming=Array.isArray(input?.attachments)?input.attachments:[];
+    if(incoming.length>4)throw new Error('Attach up to four images.');
+    const images=incoming.map(decodeImage);
+    if(body.length>100000)throw new Error('Note must contain at most 100000 characters.');
+    return this.tx(() => {
+      const id = input.id || randomUUID();
+      const current = this.db.prepare('SELECT id, deleted_at FROM notes WHERE id=?').get(id);
+      if (current?.deleted_at) throw new Error('This note is in the trash.');
+      if (input.id && !current) throw new Error('Note not found.');
+      if(!body&&!images.length&&(!current||!this.attachmentsFor(id).length))throw new Error('Write a note or attach an image.');
+      if(images.length+(current?this.attachmentsFor(id).length:0)>4)throw new Error('Attach up to four images.');
+      const revisionId = randomUUID(), now = new Date().toISOString();
+      if (!current) this.db.prepare('INSERT INTO notes(id,created_at,origin_kind,ai_excluded) VALUES(?,?,?,?)').run(id,now,input.originKind==='generated'?'generated':'human',input.aiExcluded?1:0);
+      this.db.prepare('INSERT INTO note_revisions(id,note_id,body,created_at,source_kind,source_url) VALUES(?,?,?,?,?,?)').run(revisionId,id,body,now,sourceKind,sourceUrl);
+      if(sourceUrl&&savedSourceCanPreview(input.originKind))this.db.prepare("INSERT INTO article_previews(revision_id,status) VALUES(?,'pending')").run(revisionId);
+      this.db.prepare('UPDATE notes SET current_revision_id=? WHERE id=?').run(revisionId,id);
+      for(const image of images)this.db.prepare('INSERT INTO attachments(id,note_id,media_type,file_name,content_hash,bytes,created_at) VALUES(?,?,?,?,?,?,?)').run(randomUUID(),id,image.mediaType,image.fileName,createHash('sha256').update(image.bytes).digest('hex'),image.bytes,now);
+      if (current) this.db.prepare('UPDATE assignments SET revision_id=? WHERE note_id=? AND origin=\'human\'').run(revisionId,id);
+      if (current) this.db.prepare(`UPDATE outputs SET status='stale' WHERE id IN (
+        SELECT e.output_id FROM evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
+        UNION SELECT o.id FROM outputs o JOIN analysis_inputs ai ON ai.run_id=o.run_id
+        JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
+      )`).run(id,id);
+      this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
+      if(current)this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
+      const saved=this.db.prepare('SELECT created_at,origin_kind,is_demo,ai_excluded,ai_access_version FROM notes WHERE id=?').get(id);
+      if(body&&!saved.ai_excluded&&saved.origin_kind==='human'&&!saved.is_demo&&this.autoClassifyEnabled()&&typeof input.model==='string'&&input.model&&this.db.prepare("SELECT 1 FROM categories WHERE state='active' AND id!='all' LIMIT 1").get()){
+        this.db.prepare(`INSERT INTO classification_jobs(note_id,revision_id,model,updated_at,token) VALUES(?,?,?,?,?)
+          ON CONFLICT(note_id) DO UPDATE SET revision_id=excluded.revision_id,model=excluded.model,state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=excluded.token,updated_at=excluded.updated_at`).run(id,revisionId,input.model,now,randomUUID());
+      }
+      if(input.draftClearedAt!==undefined){
+        const clearedAt=Number(input.draftClearedAt);
+        if(!Number.isSafeInteger(clearedAt)||clearedAt<=0)throw new Error('Invalid draft timestamp.');
+        this.writeDraftSnapshot({text:'',originKind:'human',sourceKind:'unspecified',editingId:'',updatedAt:Math.max(clearedAt,this.draftUpdatedAt()+1)});
+      }
+      return {id,revisionId,text:body,date:saved.created_at,originKind:saved.origin_kind,isDemo:!!saved.is_demo,aiExcluded:!!saved.ai_excluded,aiAccessVersion:saved.ai_access_version,sourceKind,sourceUrl,attachments:this.attachmentsFor(id)};
+    });
+  }
+  trashNote(id) {
+    return this.tx(() => {
+      const changed=this.db.prepare('UPDATE notes SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(new Date().toISOString(),id);
+      if(!changed.changes)throw new Error('Active note not found.');
+      this.db.prepare(`UPDATE outputs SET status='stale' WHERE id IN (
+        SELECT e.output_id FROM evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
+        UNION SELECT o.id FROM outputs o JOIN analysis_inputs ai ON ai.run_id=o.run_id
+        JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
+      )`).run(id,id);
+      this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
+    });
+  }
+  restoreNote(id) {
+    return this.tx(() => {
+      const changed=this.db.prepare('UPDATE notes SET deleted_at=NULL WHERE id=? AND deleted_at IS NOT NULL').run(id);
+      if(!changed.changes)throw new Error('Trashed note not found.');
+      return this.db.prepare(`SELECT n.id,n.current_revision_id AS revisionId,r.body AS text,
+        n.created_at AS date,n.origin_kind AS originKind,n.is_demo AS isDemo,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,
+        r.source_kind AS sourceKind,r.source_url AS sourceUrl
+        FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id WHERE n.id=?`).get(id);
+    });
+  }
+  setAiExcluded({id,excluded,model,expectedAccessVersion}={}, {allowTrashed=false}={}){
+    if(typeof id!=='string'||typeof excluded!=='boolean')throw new Error('AI解析の設定が不正です。');
+    const changed=this.tx(()=>{
+      const note=this.db.prepare('SELECT * FROM notes WHERE id=? AND (? OR deleted_at IS NULL)').get(id,allowTrashed?1:0);
+      if(!note)throw new Error('メモが見つかりません。');
+      if(expectedAccessVersion!==undefined&&expectedAccessVersion!==note.ai_access_version)throw new Error('設定が変更されました。メモを開き直してください。');
+      if(!!note.ai_excluded===excluded)return false;
+      this.db.prepare('UPDATE notes SET ai_excluded=?,ai_access_version=ai_access_version+1 WHERE id=?').run(excluded?1:0,id);
+      this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
+      const affected=new Set(['all',...this.db.prepare('SELECT category_id AS id FROM assignments WHERE note_id=?').all(id).map(row=>row.id)]);
+      if(excluded){
+        // Old runs have no feedback lineage. Treat them conservatively; new runs
+        // record context dependencies so exclusion also follows derived feedback.
+        const impacted=this.db.prepare(`WITH RECURSIVE impacted(id) AS (
+          SELECT id FROM runs WHERE context_tracked=0
+          UNION SELECT ai.run_id FROM analysis_inputs ai JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
+          UNION SELECT o.run_id FROM evidence e JOIN outputs o ON o.id=e.output_id JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
+          UNION SELECT rc.run_id FROM run_contexts rc JOIN impacted i ON rc.source_run_id=i.id
+        ) SELECT r.id,r.category_id AS categoryId FROM runs r JOIN impacted i ON i.id=r.id WHERE r.ai_blocked=0`).all(id,id);
+        for(const run of impacted){
+          this.db.prepare('UPDATE runs SET ai_blocked=1 WHERE id=?').run(run.id);
+          this.db.prepare("UPDATE outputs SET status='stale' WHERE run_id=?").run(run.id);
+          affected.add(run.categoryId);
+        }
+      }
+      for(const categoryId of affected){
+        this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND status='current' AND kind IN ('summary','pattern','action')").run(categoryId);
+        this.db.prepare('DELETE FROM digest_jobs WHERE category_id=?').run(categoryId);
+      }
+      if(!excluded&&note.origin_kind==='human'&&!note.is_demo&&this.autoClassifyEnabled()&&typeof model==='string'&&model&&this.db.prepare("SELECT 1 FROM categories WHERE state='active' AND id!='all'").get()){
+        const revision=this.db.prepare('SELECT body FROM note_revisions WHERE id=?').get(note.current_revision_id);
+        if(revision.body.trim())this.db.prepare('INSERT INTO classification_jobs(note_id,revision_id,model,updated_at,token) VALUES(?,?,?,?,?)').run(id,note.current_revision_id,model,new Date().toISOString(),randomUUID());
+      }
+      return true;
+    });
+    if(changed)this.queueStaleDigests();
+    return changed;
+  }
+  purgeNote(id) {
+    const removed=this.tx(() => {
+      if(!this.db.prepare('SELECT 1 FROM notes WHERE id=? AND deleted_at IS NOT NULL').get(id))throw new Error('Move the note to trash before deleting it permanently.');
+      // Older analysis runs did not record every input. Any of them may contain a copy
+      // of this note, including in outputs without an evidence link.
+      const analysisCount=this.db.prepare('SELECT count(*) AS count FROM runs').get().count;
+      for(const table of ['feedback','ask_questions','run_contexts','evidence','analysis_inputs','digest_claim_evidence','digest_claims','answer_claim_evidence','answer_claims','retrieval_items','outputs','runs'])this.db.exec(`DELETE FROM ${table}`);
+      this.db.exec('DELETE FROM digest_jobs');
+      this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
+      this.db.prepare('DELETE FROM assignment_exclusions WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM assignments WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM article_previews WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
+      this.db.prepare('DELETE FROM note_revisions WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM attachments WHERE note_id=?').run(id);
+      this.db.prepare('DELETE FROM notes WHERE id=?').run(id);
+      this.db.prepare('INSERT INTO purged_notes(id,purged_at) VALUES(?,?) ON CONFLICT(id) DO NOTHING').run(id,new Date().toISOString());
+      return {analysisCount};
+    });
+    // Flush older WAL pages and rebuild the live database to remove freed text pages.
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
+    return removed;
+  }
+  purgedNoteIds(){return this.db.prepare('SELECT id FROM purged_notes').all().map(row=>row.id);}
+  categories() { const rows=this.db.prepare("SELECT id,name FROM categories WHERE state='active' ORDER BY CASE WHEN id='all' THEN 0 ELSE 1 END,name").all();return [rows[0],{id:'other',name:'Other'},...rows.slice(1)]; }
+  categoryOverview(){return this.categories().map(c=>({...c,count:this.notesFor(c.id).length}));}
+  graphData(limit=160){
+    const size=Math.max(1,Math.min(300,Number(limit)||160));
+    const total=this.db.prepare("SELECT count(*) AS count FROM notes WHERE deleted_at IS NULL AND origin_kind='human' AND is_demo=0").get().count;
+    const rows=this.db.prepare(`WITH recent AS (
+      SELECT n.id,n.current_revision_id AS revisionId,n.created_at AS date,r.body AS text
+      FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0
+      ORDER BY n.created_at DESC,n.id DESC LIMIT ?
+    ) SELECT recent.id,recent.revisionId,recent.date,recent.text,
+      c.id AS categoryId,c.name AS categoryName,a.origin
+      FROM recent LEFT JOIN assignments a ON a.note_id=recent.id AND a.revision_id=recent.revisionId
+      LEFT JOIN categories c ON c.id=a.category_id AND c.state='active' AND c.id!='all'
+      ORDER BY recent.date DESC,recent.id DESC`).all(size);
+    const notes=new Map();
+    for(const row of rows){
+      let note=notes.get(row.id);
+      if(!note){note={id:row.id,revisionId:row.revisionId,date:row.date,text:row.text,categories:[]};notes.set(row.id,note);}
+      if(row.categoryId)note.categories.push({id:row.categoryId,name:row.categoryName,origin:row.origin});
+    }
+    const visible=[...notes.values()];
+    const categoryIds=new Set(visible.flatMap(note=>note.categories.map(category=>category.id)));
+    const categories=this.db.prepare("SELECT id,name FROM categories WHERE state='active' AND id!='all' ORDER BY name").all().filter(category=>categoryIds.has(category.id));
+    if(visible.some(note=>!note.categories.length))categories.push({id:'other',name:'Other'});
+    return {total,shown:visible.length,categories,notes:visible};
+  }
+  searchableNotes(){
+    return this.db.prepare(`SELECT n.id,n.current_revision_id AS revisionId,r.body AS text,r.created_at AS date,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,
+      COALESCE(group_concat(c.name,' '),'') AS categoryNames,
+      r.source_kind AS sourceKind,r.source_url AS sourceUrl
+      FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      LEFT JOIN assignments a ON a.note_id=n.id AND a.revision_id=n.current_revision_id
+      LEFT JOIN categories c ON c.id=a.category_id AND c.state='active' AND c.id!='all'
+      WHERE n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0 AND trim(r.body)!=''
+      GROUP BY n.id ORDER BY r.created_at DESC,n.id DESC`).all();
+  }
+  searchableDigestClaims(){
+    const rows=[];
+    for(const {id,name} of this.db.prepare("SELECT id,name FROM categories WHERE state='active' AND id!='all'").all()){
+      if(this.insightState(id).status!=='current')continue;
+      const summary=this.db.prepare("SELECT run_id AS runId FROM outputs WHERE kind='summary' AND category_id=? AND status='current' ORDER BY created_at DESC,rowid DESC LIMIT 1").get(id);
+      if(!summary)continue;
+      for(const claim of this.db.prepare('SELECT id,text,created_at AS date FROM digest_claims WHERE run_id=? ORDER BY rowid').all(summary.runId)){
+        const sourceRevisionIds=this.db.prepare(`SELECT DISTINCT e.revision_id AS revisionId FROM digest_claim_evidence e
+          JOIN note_revisions r ON r.id=e.revision_id JOIN notes n ON n.id=r.note_id
+          WHERE e.claim_id=? AND n.current_revision_id=e.revision_id AND n.deleted_at IS NULL
+          AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0`).all(claim.id).map(row=>row.revisionId);
+        if(sourceRevisionIds.length)rows.push({revisionId:claim.id,text:claim.text,date:claim.date,categoryNames:name,sourceRevisionIds});
+      }
+    }
+    return rows;
+  }
+  askDigestEnabled(value){
+    if(value===undefined)return this.db.prepare("SELECT value FROM app_state WHERE key='ask_digest'").get()?.value==='true';
+    this.db.prepare("INSERT INTO app_state(key,value) VALUES('ask_digest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value?'true':'false');
+    return !!value;
+  }
+  cachedEmbeddings(model){
+    return new Map(this.db.prepare('SELECT revision_id AS revisionId,vector FROM note_embeddings WHERE model=?').all(model).map(row=>{
+      const bytes=Buffer.from(row.vector),values=[];for(let offset=0;offset<bytes.length;offset+=4)values.push(bytes.readFloatLE(offset));
+      return [row.revisionId,values];
+    }));
+  }
+  saveEmbeddings(model,items){
+    this.tx(()=>{for(const item of items){
+      if(!this.db.prepare('SELECT 1 FROM notes WHERE current_revision_id=? AND deleted_at IS NULL AND ai_excluded=0 AND ai_access_version=?').get(item.revisionId,item.aiAccessVersion??0))continue;
+      const vector=Buffer.alloc(item.vector.length*4);
+      item.vector.forEach((value,index)=>vector.writeFloatLE(value,index*4));
+      this.db.prepare('INSERT INTO note_embeddings(revision_id,model,vector) VALUES(?,?,?) ON CONFLICT(revision_id) DO UPDATE SET model=excluded.model,vector=excluded.vector').run(item.revisionId,model,vector);
+    }});
+  }
+  autoClassifyEnabled(value){
+    if(value===undefined)return this.db.prepare("SELECT value FROM app_state WHERE key='auto_classify'").get()?.value!=='false';
+    this.db.prepare("INSERT INTO app_state(key,value) VALUES('auto_classify',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value?'true':'false');
+    return !!value;
+  }
+  autoDigestEnabled(value,model){
+    if(value===undefined)return this.db.prepare("SELECT value FROM app_state WHERE key='auto_digest'").get()?.value==='true';
+    if(value&&(!model||typeof model!=='string'))throw new Error('Select a model before enabling automatic insight updates.');
+    this.tx(()=>{
+      this.db.prepare("INSERT INTO app_state(key,value) VALUES('auto_digest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value?'true':'false');
+      if(value)this.db.prepare("INSERT INTO app_state(key,value) VALUES('auto_digest_model',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(model);
+    });
+    return !!value;
+  }
+  digestModel(){return this.db.prepare("SELECT value FROM app_state WHERE key='auto_digest_model'").get()?.value||'';}
+  setDigestModel(model){
+    if(typeof model!=='string'||!model)throw new Error('Select a model.');
+    this.tx(()=>{
+      this.db.prepare("INSERT INTO app_state(key,value) VALUES('auto_digest_model',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(model);
+      this.db.prepare("UPDATE digest_jobs SET model=? WHERE state='pending'").run(model);
+    });
+    return model;
+  }
+  queueStaleDigests(){
+    if(!this.autoDigestEnabled())return 0;
+    const model=this.digestModel(),now=new Date().toISOString();
+    let queued=0;
+    this.tx(()=>{
+      const categories=this.db.prepare("SELECT id FROM categories WHERE state='active' AND id!='all'").all();
+      for(const {id} of categories){
+        if(this.insightSourceIds(id).length<2||this.insightState(id).status==='current'){
+          this.db.prepare('DELETE FROM digest_jobs WHERE category_id=?').run(id);
+          continue;
+        }
+        const fingerprint=this.insightFingerprint(id);
+        const existing=this.db.prepare('SELECT fingerprint FROM digest_jobs WHERE category_id=?').get(id);
+        if(existing?.fingerprint===fingerprint)continue;
+        this.db.prepare(`INSERT INTO digest_jobs(category_id,fingerprint,model,updated_at,token) VALUES(?,?,?,?,?)
+          ON CONFLICT(category_id) DO UPDATE SET fingerprint=excluded.fingerprint,model=excluded.model,
+          state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=excluded.token,updated_at=excluded.updated_at`).run(id,fingerprint,model,now,randomUUID());
+        queued++;
+      }
+      this.db.prepare("DELETE FROM digest_jobs WHERE category_id NOT IN (SELECT id FROM categories WHERE state='active' AND id!='all')").run();
+    });
+    return queued;
+  }
+  digestStatus(){return this.db.prepare('SELECT state,count(*) AS count FROM digest_jobs GROUP BY state').all().reduce((status,row)=>({...status,[row.state]:row.count}),{pending:0,running:0,failed:0});}
+  nextDigestJob(){return this.db.prepare(`SELECT j.category_id AS categoryId,j.fingerprint,j.model,j.token,j.attempts FROM digest_jobs j
+    JOIN categories c ON c.id=j.category_id AND c.state='active' WHERE j.state='pending' AND (j.retry_after IS NULL OR j.retry_after<=?) ORDER BY j.updated_at LIMIT 1`).get(Date.now());}
+  markDigestRunning(job){return this.db.prepare("UPDATE digest_jobs SET state='running',attempts=attempts+1,retry_after=NULL,updated_at=? WHERE category_id=? AND fingerprint=? AND token=? AND state='pending'").run(new Date().toISOString(),job.categoryId,job.fingerprint,job.token).changes===1;}
+  digestJobStillRunning(job){return !!this.db.prepare("SELECT 1 FROM digest_jobs WHERE category_id=? AND fingerprint=? AND token=? AND state='running'").get(job.categoryId,job.fingerprint,job.token);}
+  finishDigest(job){this.db.prepare("DELETE FROM digest_jobs WHERE category_id=? AND fingerprint=? AND token=? AND state='running'").run(job.categoryId,job.fingerprint,job.token);}
+  failDigest(job,error){this.failJob('digest',job.categoryId,job.token,error);}
+  deferDigest(job){this.db.prepare("UPDATE digest_jobs SET state='pending',token=lower(hex(randomblob(16))),updated_at=? WHERE category_id=? AND fingerprint=? AND token=? AND state='running'").run(new Date().toISOString(),job.categoryId,job.fingerprint,job.token);}
+  retryDigests(){this.db.prepare("UPDATE digest_jobs SET state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=lower(hex(randomblob(16))),updated_at=? WHERE state='failed'").run(new Date().toISOString());}
+  invalidateInsight(categoryId){
+    this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(categoryId);
+  }
+  classificationStatus(){return this.db.prepare("SELECT state,count(*) AS count FROM classification_jobs GROUP BY state").all().reduce((status,row)=>({...status,[row.state]:row.count}),{pending:0,running:0,failed:0});}
+  nextClassificationJob(){
+    return this.db.prepare(`SELECT j.note_id AS noteId,j.revision_id AS revisionId,j.model,j.token,j.attempts,n.ai_access_version AS aiAccessVersion,r.body AS text,
+      n.created_at AS date,r.source_kind AS sourceKind,r.source_url AS sourceUrl FROM classification_jobs j JOIN notes n ON n.id=j.note_id
+      JOIN note_revisions r ON r.id=j.revision_id WHERE j.state='pending' AND (j.retry_after IS NULL OR j.retry_after<=?)
+      AND n.deleted_at IS NULL AND n.current_revision_id=j.revision_id AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0
+      ORDER BY j.updated_at LIMIT 1`).get(Date.now());
+  }
+  markClassificationRunning(noteId,revisionId,token){
+    token??=this.db.prepare('SELECT token FROM classification_jobs WHERE note_id=? AND revision_id=?').get(noteId,revisionId)?.token;
+    return this.db.prepare("UPDATE classification_jobs SET state='running',attempts=attempts+1,retry_after=NULL,updated_at=? WHERE note_id=? AND revision_id=? AND token=? AND state='pending'").run(new Date().toISOString(),noteId,revisionId,token||'').changes===1;
+  }
+  failClassification(noteId,revisionId,error,token){this.failJob('classification',noteId,token,error);}
+  deferClassification(noteId,revisionId,token){this.db.prepare("UPDATE classification_jobs SET state='pending',token=lower(hex(randomblob(16))),updated_at=? WHERE note_id=? AND revision_id=? AND token=? AND state='running'").run(new Date().toISOString(),noteId,revisionId,token);}
+  retryClassifications(){this.db.prepare("UPDATE classification_jobs SET state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=lower(hex(randomblob(16))),updated_at=? WHERE state='failed'").run(new Date().toISOString());}
+  jobTable(kind){
+    if(kind==='classification')return {table:'classification_jobs',key:'note_id',enabled:this.autoClassifyEnabled()};
+    if(kind==='digest')return {table:'digest_jobs',key:'category_id',enabled:this.autoDigestEnabled()};
+    throw new Error('不明なAI処理です。');
+  }
+  failJob(kind,id,token,error){
+    const {table,key}=this.jobTable(kind);
+    const job=this.db.prepare(`SELECT attempts FROM ${table} WHERE ${key}=? AND token=? AND state='running'`).get(id,token);
+    if(!job)return false;
+    const delay=retryDelay(error,job.attempts);
+    this.db.prepare(`UPDATE ${table} SET state=?,last_error=?,retry_after=?,updated_at=? WHERE ${key}=? AND token=? AND state='running'`)
+      .run(delay===null?'failed':'pending',String(error?.message||error).slice(0,300),delay===null?null:Date.now()+delay,new Date().toISOString(),id,token);
+    return true;
+  }
+  nextJobDelay(kind){
+    const jobs=this.processingJobs().filter(job=>job.kind===kind&&job.state==='pending'&&job.enabled);
+    return jobs.length?Math.max(0,Math.min(...jobs.map(job=>job.retryAfter||0))-Date.now()):null;
+  }
+  processingJobs(){
+    const classification=this.db.prepare(`SELECT 'classification' AS kind,j.note_id AS id,j.token,j.state,j.attempts,j.last_error AS error,j.retry_after AS retryAfter,j.updated_at AS updatedAt,j.model,r.body AS title
+      FROM classification_jobs j JOIN notes n ON n.id=j.note_id JOIN note_revisions r ON r.id=j.revision_id
+      WHERE j.state!='done' AND n.deleted_at IS NULL AND n.current_revision_id=j.revision_id AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0`).all();
+    const digests=this.db.prepare(`SELECT 'digest' AS kind,j.category_id AS id,j.token,j.state,j.attempts,j.last_error AS error,j.retry_after AS retryAfter,j.updated_at AS updatedAt,j.model,c.name AS title
+      FROM digest_jobs j JOIN categories c ON c.id=j.category_id WHERE c.state='active'`).all();
+    const priority={running:0,pending:1,failed:2,cancelled:3};
+    return [...classification,...digests].map(job=>({...job,title:job.title.slice(0,180),enabled:job.kind==='classification'?this.autoClassifyEnabled():this.autoDigestEnabled()}))
+      .sort((a,b)=>priority[a.state]-priority[b.state]||b.updatedAt.localeCompare(a.updatedAt));
+  }
+  updateProcessingJob({kind,id,token,action}={}){
+    const {table,key,enabled}=this.jobTable(kind);
+    if(typeof id!=='string'||typeof token!=='string'||!['cancel','retry'].includes(action))throw new Error('AI処理の操作が不正です。');
+    if(action==='retry'&&!enabled)throw new Error('再試行するには、この種類の自動処理をオンにしてください。');
+    const now=new Date().toISOString();
+    const result=action==='cancel'
+      ?this.db.prepare(`UPDATE ${table} SET state='cancelled',retry_after=NULL,updated_at=? WHERE ${key}=? AND token=? AND state IN ('pending','running')`).run(now,id,token)
+      :this.db.prepare(`UPDATE ${table} SET state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=?,updated_at=? WHERE ${key}=? AND token=? AND state IN ('failed','cancelled')`).run(randomUUID(),now,id,token);
+    return result.changes===1;
+  }
+  applyClassification(job,categoryIds){
+    return this.tx(()=>{
+      const current=this.db.prepare("SELECT current_revision_id AS revisionId FROM notes WHERE id=? AND deleted_at IS NULL AND origin_kind='human' AND is_demo=0 AND ai_excluded=0").get(job.noteId);
+      const queued=this.db.prepare('SELECT revision_id AS revisionId,state,token FROM classification_jobs WHERE note_id=?').get(job.noteId);
+      if(current?.revisionId!==job.revisionId||queued?.revisionId!==job.revisionId||queued.state!=='running'||queued.token!==job.token)return false;
+      const selected=[...new Set(categoryIds)];
+      if(selected.length>2)throw new Error('Too many categories in classification.');
+      const active=this.db.prepare("SELECT id FROM categories WHERE state='active' AND id!='all'").all();
+      const allowed=new Set(active.map(c=>c.id));
+      if(selected.some(id=>!allowed.has(id)))throw new Error('AI returned an unknown or archived category.');
+      const previous=this.db.prepare("SELECT category_id AS categoryId FROM assignments WHERE note_id=? AND origin='ai'").all(job.noteId).map(row=>row.categoryId);
+      this.db.prepare("DELETE FROM assignments WHERE note_id=? AND origin='ai'").run(job.noteId);
+      for(const categoryId of selected){
+        if(this.db.prepare('SELECT 1 FROM assignment_exclusions WHERE note_id=? AND category_id=? AND revision_id=?').get(job.noteId,categoryId,job.revisionId))continue;
+        this.db.prepare(`INSERT INTO assignments(note_id,category_id,revision_id,origin) VALUES(?,?,?,'ai')
+          ON CONFLICT(note_id,category_id) DO NOTHING`).run(job.noteId,categoryId,job.revisionId);
+      }
+      this.db.prepare("UPDATE classification_jobs SET state='done',last_error=NULL,updated_at=? WHERE note_id=? AND revision_id=?").run(new Date().toISOString(),job.noteId,job.revisionId);
+      for(const categoryId of new Set([...previous,...selected]))this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(categoryId);
+      return true;
+    });
+  }
+  archivedCategories(){return this.db.prepare("SELECT id,name FROM categories WHERE state='archived' ORDER BY name").all();}
+  categoryMerges(){return this.db.prepare(`SELECT t.id,t.source_category_id AS sourceId,t.target_category_id AS targetId,
+    s.name AS sourceName,d.name AS targetName,t.moved_count AS movedCount,t.skipped_count AS skippedCount,
+    t.created_at AS createdAt FROM category_transitions t
+    JOIN categories s ON s.id=t.source_category_id JOIN categories d ON d.id=t.target_category_id
+    WHERE t.kind='merge' ORDER BY t.created_at DESC,t.rowid DESC`).all();}
+  categorySplits(){return this.db.prepare(`SELECT t.id,t.source_category_id AS sourceId,t.target_category_id AS targetId,
+    s.name AS sourceName,d.name AS targetName,t.moved_count AS movedCount,t.created_at AS createdAt
+    FROM category_transitions t JOIN categories s ON s.id=t.source_category_id
+    JOIN categories d ON d.id=t.target_category_id
+    WHERE t.kind='split' ORDER BY t.created_at DESC,t.rowid DESC`).all();}
+  createCategory(name,noteIds=[]) {
+    const label=String(name||'').trim().slice(0,60);
+    if(!label||['all notes','other'].includes(label.toLocaleLowerCase())||!Array.isArray(noteIds))throw new Error('Choose a category name.');
+    return this.tx(()=>{
+      if(this.db.prepare("SELECT id FROM categories WHERE lower(name)=lower(?) AND state='active'").get(label))throw new Error('Category name already exists.');
+      const id=randomUUID(),now=new Date().toISOString();
+      this.db.prepare('INSERT INTO categories(id,name,created_at) VALUES(?,?,?)').run(id,label,now);
+      this.db.prepare('INSERT INTO category_revisions(id,category_id,name,origin,created_at) VALUES(?,?,?,?,?)').run(randomUUID(),id,label,'human',now);
+      for(const noteId of [...new Set(noteIds)]) this.assignNoteInTransaction(noteId,id);
+      return {id,name:label};
+    });
+  }
+  assignNoteInTransaction(noteId,categoryId) {
+    const note=this.db.prepare("SELECT current_revision_id AS revisionId FROM notes WHERE id=? AND deleted_at IS NULL AND origin_kind='human' AND is_demo=0 AND ai_excluded=0").get(noteId);
+    if(!note)throw new Error('Source note not found.');
+    this.db.prepare(`INSERT INTO assignments(note_id,category_id,revision_id,origin) VALUES(?,?,?,'human')
+      ON CONFLICT(note_id,category_id) DO UPDATE SET revision_id=excluded.revision_id,origin='human'`).run(noteId,categoryId,note.revisionId);
+    this.db.prepare('DELETE FROM assignment_exclusions WHERE note_id=? AND category_id=?').run(noteId,categoryId);
+    this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(categoryId);
+  }
+  assignNote(noteId,categoryId) {
+    return this.tx(()=>{
+      if(!this.db.prepare("SELECT id FROM categories WHERE id=? AND state='active' AND id!='all'").get(categoryId))throw new Error('Category not found.');
+      this.assignNoteInTransaction(noteId,categoryId);
+      return true;
+    });
+  }
+  unassignNote(noteId,categoryId){
+    return this.tx(()=>{
+      const note=this.db.prepare("SELECT current_revision_id AS revisionId FROM notes WHERE id=? AND deleted_at IS NULL AND origin_kind='human' AND is_demo=0 AND ai_excluded=0").get(noteId);
+      if(!note||!this.db.prepare("SELECT id FROM categories WHERE id=? AND state='active' AND id!='all'").get(categoryId))throw new Error('Note or category not found.');
+      this.db.prepare('DELETE FROM assignments WHERE note_id=? AND category_id=?').run(noteId,categoryId);
+      this.db.prepare(`INSERT INTO assignment_exclusions(note_id,category_id,revision_id,created_at) VALUES(?,?,?,?)
+        ON CONFLICT(note_id,category_id) DO UPDATE SET revision_id=excluded.revision_id,created_at=excluded.created_at`).run(noteId,categoryId,note.revisionId,new Date().toISOString());
+      this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(categoryId);
+      return true;
+    });
+  }
+  archiveCategory(id){
+    return this.tx(()=>{
+      if(id==='all'||!this.db.prepare("SELECT id FROM categories WHERE id=? AND state='active'").get(id))throw new Error('Category not found.');
+      this.db.prepare("UPDATE categories SET state='archived' WHERE id=?").run(id);
+      this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(id);
+      return true;
+    });
+  }
+  mergeCategory(sourceId,targetId){
+    return this.tx(()=>{
+      if(!sourceId||!targetId||sourceId===targetId||sourceId==='all'||targetId==='all')throw new Error('Choose two different user categories.');
+      const source=this.db.prepare("SELECT id,name FROM categories WHERE id=? AND state='active' AND id!='all'").get(sourceId);
+      const target=this.db.prepare("SELECT id,name FROM categories WHERE id=? AND state='active' AND id!='all'").get(targetId);
+      if(!source||!target)throw new Error('Both categories must be active.');
+      const notes=this.db.prepare(`SELECT a.note_id AS noteId,a.revision_id AS revisionId
+        FROM assignments a JOIN notes n ON n.id=a.note_id
+        WHERE a.category_id=? AND a.revision_id=n.current_revision_id
+        AND n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0`).all(sourceId);
+      let moved=0,skipped=0;
+      for(const note of notes){
+        if(this.db.prepare('SELECT 1 FROM assignment_exclusions WHERE note_id=? AND category_id=? AND revision_id=?').get(note.noteId,targetId,note.revisionId)){
+          skipped++;continue;
+        }
+        const existing=this.db.prepare('SELECT revision_id AS revisionId,origin FROM assignments WHERE note_id=? AND category_id=?').get(note.noteId,targetId);
+        if(existing?.revisionId===note.revisionId){
+          if(existing.origin==='ai')this.db.prepare("UPDATE assignments SET origin='human' WHERE note_id=? AND category_id=?").run(note.noteId,targetId);
+          continue;
+        }
+        this.db.prepare(`INSERT INTO assignments(note_id,category_id,revision_id,origin)
+          VALUES(?,?,?,'human') ON CONFLICT(note_id,category_id)
+          DO UPDATE SET revision_id=excluded.revision_id,origin='human'`).run(note.noteId,targetId,note.revisionId);
+        moved++;
+      }
+      const id=randomUUID(),now=new Date().toISOString();
+      this.db.prepare("UPDATE categories SET state='merged' WHERE id=?").run(sourceId);
+      this.db.prepare(`INSERT INTO category_transitions(id,kind,source_category_id,target_category_id,moved_count,skipped_count,created_at)
+        VALUES(?,'merge',?,?,?,?,?)`).run(id,sourceId,targetId,moved,skipped,now);
+      this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id IN (?,?,'all') AND kind IN ('summary','pattern','action') AND status='current'").run(sourceId,targetId);
+      this.db.prepare('DELETE FROM digest_jobs WHERE category_id=?').run(sourceId);
+      this.db.prepare("UPDATE classification_jobs SET state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=lower(hex(randomblob(16))),updated_at=? WHERE state IN ('pending','running')").run(now);
+      return {id,sourceId,targetId,sourceName:source.name,targetName:target.name,movedCount:moved,skippedCount:skipped};
+    });
+  }
+  splitCategory(sourceId,name,noteIds){
+    const label=String(name||'').trim().slice(0,60);
+    if(!sourceId||sourceId==='all'||!label||['all notes','other'].includes(label.toLocaleLowerCase())||!Array.isArray(noteIds))throw new Error('Choose a source category, name and notes.');
+    const selected=[...new Set(noteIds)];
+    if(!selected.length)throw new Error('Select at least one note to move.');
+    return this.tx(()=>{
+      const source=this.db.prepare("SELECT id,name FROM categories WHERE id=? AND state='active' AND id!='all'").get(sourceId);
+      if(!source)throw new Error('Source category not found.');
+      if(this.db.prepare("SELECT 1 FROM categories WHERE lower(name)=lower(?) AND state='active'").get(label))throw new Error('Category name already exists.');
+      const current=this.notesFor(sourceId);
+      const allowed=new Map(current.map(note=>[note.id,note]));
+      if(selected.length>=current.length)throw new Error('Leave at least one note in the source category.');
+      if(selected.some(id=>!allowed.has(id)))throw new Error('A selected note is no longer in this category.');
+      const targetId=randomUUID(),id=randomUUID(),now=new Date().toISOString();
+      this.db.prepare('INSERT INTO categories(id,name,created_at) VALUES(?,?,?)').run(targetId,label,now);
+      this.db.prepare('INSERT INTO category_revisions(id,category_id,name,origin,created_at) VALUES(?,?,?,?,?)').run(randomUUID(),targetId,label,'human',now);
+      for(const noteId of selected){
+        const note=allowed.get(noteId);
+        this.assignNoteInTransaction(noteId,targetId);
+        this.db.prepare('DELETE FROM assignments WHERE note_id=? AND category_id=?').run(noteId,sourceId);
+        this.db.prepare(`INSERT INTO assignment_exclusions(note_id,category_id,revision_id,created_at) VALUES(?,?,?,?)
+          ON CONFLICT(note_id,category_id) DO UPDATE SET revision_id=excluded.revision_id,created_at=excluded.created_at`).run(noteId,sourceId,note.revisionId,now);
+      }
+      this.db.prepare(`INSERT INTO category_transitions(id,kind,source_category_id,target_category_id,moved_count,skipped_count,created_at)
+        VALUES(?,'split',?,?,?,0,?)`).run(id,sourceId,targetId,selected.length,now);
+      this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id IN (?,'all') AND kind IN ('summary','pattern','action') AND status='current'").run(sourceId);
+      this.db.prepare("UPDATE classification_jobs SET state='pending',attempts=0,last_error=NULL,retry_after=NULL,token=lower(hex(randomblob(16))),updated_at=? WHERE state IN ('pending','running')").run(now);
+      return {id,sourceId,targetId,sourceName:source.name,targetName:label,movedCount:selected.length};
+    });
+  }
+  restoreCategory(id){
+    return this.tx(()=>{
+      const category=this.db.prepare("SELECT name FROM categories WHERE id=? AND state='archived'").get(id);
+      if(!category)throw new Error('Archived category not found.');
+      if(this.db.prepare("SELECT id FROM categories WHERE lower(name)=lower(?) AND state='active'").get(category.name))throw new Error('An active category already has this name.');
+      this.db.prepare("UPDATE categories SET state='active' WHERE id=?").run(id);
+      return true;
+    });
+  }
+  renameCategory(id,name) {
+    const label=String(name||'').trim().slice(0,60);
+    if(id==='all'||!label||['all notes','other'].includes(label.toLocaleLowerCase()))throw new Error('Invalid category name.');
+    return this.tx(()=>{
+      const category=this.db.prepare("SELECT id FROM categories WHERE id=? AND state='active'").get(id);
+      if(!category)throw new Error('Category not found.');
+      if(this.db.prepare("SELECT id FROM categories WHERE lower(name)=lower(?) AND id!=? AND state='active'").get(label,id))throw new Error('Category name already exists.');
+      this.db.prepare('UPDATE categories SET name=? WHERE id=?').run(label,id);
+      this.db.prepare('INSERT INTO category_revisions(id,category_id,name,origin,created_at) VALUES(?,?,?,?,?)').run(randomUUID(),id,label,'human',new Date().toISOString());
+      this.db.prepare("UPDATE outputs SET status='stale' WHERE category_id IN (?, 'all') AND kind IN ('summary','pattern','action') AND status='current'").run(id);
+      return {id,name:label};
+    });
+  }
+  notesFor(categoryId) {
+    if (categoryId==='all') return this.listNotes().filter(n=>n.originKind==='human'&&!n.isDemo);
+    if (categoryId==='other') return this.db.prepare(`SELECT n.id,n.current_revision_id AS revisionId,r.body AS text,n.created_at AS date,
+      n.origin_kind AS originKind,n.is_demo AS isDemo,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,r.source_kind AS sourceKind,r.source_url AS sourceUrl
+      FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0
+      AND NOT EXISTS (SELECT 1 FROM assignments a JOIN categories c ON c.id=a.category_id
+        WHERE a.note_id=n.id AND a.revision_id=n.current_revision_id AND c.state='active' AND c.id!='all')
+      ORDER BY n.created_at DESC`).all();
+    return this.db.prepare(`SELECT n.id,n.current_revision_id AS revisionId,r.body AS text,n.created_at AS date,
+      n.origin_kind AS originKind,n.is_demo AS isDemo,n.ai_excluded AS aiExcluded,n.ai_access_version AS aiAccessVersion,r.source_kind AS sourceKind,r.source_url AS sourceUrl FROM assignments a
+      JOIN categories c ON c.id=a.category_id AND c.state='active'
+      JOIN notes n ON n.id=a.note_id JOIN note_revisions r ON r.id=n.current_revision_id
+      WHERE a.category_id=? AND a.revision_id=n.current_revision_id AND n.deleted_at IS NULL
+      AND n.origin_kind='human' AND n.is_demo=0 ORDER BY n.created_at DESC`).all(categoryId);
+  }
+  analysisNotesFor(categoryId){return this.notesFor(categoryId).filter(note=>!note.aiExcluded&&note.text.trim());}
+  aiSnapshotCurrent(items,contextRunIds=[]){
+    return items.every(item=>{
+      const note=this.db.prepare("SELECT current_revision_id AS revisionId,ai_access_version AS accessVersion FROM notes WHERE id=? AND deleted_at IS NULL AND origin_kind='human' AND is_demo=0 AND ai_excluded=0").get(item.id||item.noteId);
+      return !!note&&note.revisionId===item.revisionId&&note.accessVersion===(item.aiAccessVersion??0);
+    })&&contextRunIds.every(id=>!!this.db.prepare('SELECT 1 FROM runs WHERE id=? AND ai_blocked=0').get(id));
+  }
+  assertAiSnapshot(items,contextRunIds=[]){
+    if(!this.aiSnapshotCurrent(items,contextRunIds))throw new Error('Notes or AI access changed during analysis. Run it again.');
+  }
+  insightSourceIds(categoryId){
+    const sql=categoryId==='all'
+      ? `SELECT n.current_revision_id AS revisionId FROM notes n JOIN note_revisions r ON r.id=n.current_revision_id
+        WHERE n.deleted_at IS NULL AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0 AND trim(r.body)!=''
+        ORDER BY n.created_at DESC LIMIT 30`
+      : `SELECT n.current_revision_id AS revisionId FROM assignments a
+        JOIN categories c ON c.id=a.category_id AND c.state='active'
+        JOIN notes n ON n.id=a.note_id JOIN note_revisions r ON r.id=n.current_revision_id
+        WHERE a.category_id=? AND a.revision_id=n.current_revision_id AND n.deleted_at IS NULL
+        AND n.origin_kind='human' AND n.is_demo=0 AND n.ai_excluded=0 AND trim(r.body)!=''
+        ORDER BY n.created_at DESC LIMIT 30`;
+    return this.db.prepare(sql).all(...(categoryId==='all'?[]:[categoryId])).map(row=>row.revisionId).sort();
+  }
+  insightFingerprint(categoryId){
+    const category=this.db.prepare("SELECT name FROM categories WHERE id=? AND state='active'").get(categoryId);
+    if(!category)return null;
+    return createHash('sha256').update(JSON.stringify({name:category.name,revisionIds:this.insightSourceIds(categoryId)})).digest('hex');
+  }
+  insightState(categoryId){
+    if(categoryId==='other')return {status:'unavailable'};
+    const latest=this.db.prepare(`SELECT id,run_id AS runId,status,created_at AS analyzedAt FROM outputs
+      WHERE kind='summary' AND category_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1`).get(categoryId);
+    if(!latest)return {status:'missing'};
+    const expected=this.insightSourceIds(categoryId);
+    const inputs=this.db.prepare('SELECT revision_id AS revisionId FROM analysis_inputs WHERE run_id=? ORDER BY revision_id').all(latest.runId).map(row=>row.revisionId);
+    const current=latest.status==='current'&&expected.length===inputs.length&&expected.every((id,index)=>id===inputs[index]);
+    return {status:current?'current':'needs-refresh',analyzedAt:latest.analyzedAt};
+  }
+  latestOutput(kind,categoryId) {
+    if(['summary','pattern','action'].includes(kind)&&this.insightState(categoryId).status!=='current')return undefined;
+    const row = this.db.prepare(`SELECT o.* FROM outputs o WHERE o.kind=? AND o.category_id=? AND o.status='current'
+      ORDER BY o.created_at DESC,o.rowid DESC LIMIT 1`).get(kind,categoryId);
+    return row && this.inflateOutput(row);
+  }
+  nextSteps() {
+    return this.db.prepare(`SELECT o.*,c.name AS category_name FROM outputs o JOIN categories c ON c.id=o.category_id
+      WHERE o.kind='action' AND o.status='current' AND c.state='active'
+      AND o.id=(SELECT newer.id FROM outputs newer WHERE newer.kind='action' AND newer.status='current'
+        AND newer.category_id=o.category_id ORDER BY newer.created_at DESC,newer.rowid DESC LIMIT 1)
+      ORDER BY o.created_at DESC,o.rowid DESC`).all().filter(o=>this.insightState(o.category_id).status==='current').map(o=>({...this.inflateOutput(o),categoryName:o.category_name}));
+  }
+  inflateOutput(row) {
+    const evidence = this.db.prepare(`SELECT r.note_id AS noteId,e.revision_id AS revisionId,r.body AS text,
+      r.source_kind AS sourceKind,
+      CASE WHEN n.current_revision_id=e.revision_id AND n.deleted_at IS NULL THEN 1 ELSE 0 END AS valid
+      FROM evidence e JOIN note_revisions r ON r.id=e.revision_id JOIN notes n ON n.id=r.note_id
+      WHERE e.output_id=?`).all(row.id).map(e=>({...e,valid:!!e.valid}));
+    const rating = this.db.prepare('SELECT rating,reason,comment FROM feedback WHERE output_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').get(row.id)||null;
+    const limitation=row.kind==='answer'?this.db.prepare("SELECT text FROM outputs WHERE kind='limitation' AND parent_output_id=? LIMIT 1").get(row.id)?.text||null:null;
+    const claims=row.kind==='summary'?this.db.prepare('SELECT * FROM digest_claims WHERE run_id=? ORDER BY rowid').all(row.run_id).map(claim=>({
+      ...claim,sources:this.db.prepare(`SELECT e.revision_id AS revisionId,e.relation,r.note_id AS noteId,r.body AS text,r.source_kind AS sourceKind
+        FROM digest_claim_evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE e.claim_id=? ORDER BY e.relation,e.rowid`).all(claim.id)
+    })):row.kind==='answer'?this.db.prepare('SELECT * FROM answer_claims WHERE output_id=? ORDER BY rowid').all(row.id).map(claim=>({
+      ...claim,sources:this.db.prepare(`SELECT e.revision_id AS revisionId,r.note_id AS noteId,r.body AS text,r.source_kind AS sourceKind
+        FROM answer_claim_evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE e.claim_id=? ORDER BY e.rowid`).all(claim.id)
+    })):[];
+    return {...row,evidence,rating,limitation,claims};
+  }
+  feedbackFor(categoryId) {
+    return this.db.prepare(`SELECT f.rating,f.reason,f.comment,o.kind,o.run_id AS _runId,
+      CASE WHEN f.rating='bad' THEN substr(o.text,1,500) ELSE NULL END AS rejectedText
+      FROM feedback f JOIN outputs o ON o.id=f.output_id
+      WHERE o.category_id=? AND o.kind IN ('summary','pattern','action')
+      AND f.id=(SELECT f2.id FROM feedback f2 WHERE f2.output_id=o.id ORDER BY f2.created_at DESC,f2.rowid DESC LIMIT 1)
+      AND f.rating!='clear' AND o.run_id IN (SELECT id FROM runs WHERE ai_blocked=0)
+      ORDER BY f.created_at DESC,f.rowid DESC LIMIT 12`).all(categoryId);
+  }
+  feedbackForAsk(question) {
+    const normalize=s=>String(s).toLocaleLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');
+    const grams=s=>{const value=normalize(s),set=new Set();for(let i=0;i<value.length-1;i++)set.add(value.slice(i,i+2));return set;};
+    const wanted=grams(question);
+    if(!wanted.size)return [];
+    const rows=this.db.prepare(`SELECT q.question,f.rating,f.reason,f.comment,o.run_id AS _runId,
+      CASE WHEN f.rating='bad' THEN substr(o.text,1,500) ELSE NULL END AS rejectedText
+      FROM ask_questions q JOIN outputs o ON o.id=q.output_id JOIN feedback f ON f.output_id=o.id
+      WHERE f.id=(SELECT f2.id FROM feedback f2 WHERE f2.output_id=o.id ORDER BY f2.created_at DESC,f2.rowid DESC LIMIT 1)
+      AND f.rating!='clear' AND o.run_id IN (SELECT id FROM runs WHERE ai_blocked=0) ORDER BY f.created_at DESC,f.rowid DESC LIMIT 30`).all();
+    return rows.filter(row=>{const other=grams(row.question);let common=0;for(const gram of wanted)if(other.has(gram))common++;return common/Math.max(1,Math.min(wanted.size,other.size))>=0.3}).slice(0,6);
+  }
+  saveAnalysis({purpose,categoryId,model,items,result,question,retrieval=[],fingerprint,contextRunIds=[]}) {
+    const allowed=new Map(items.map(n=>[n.revisionId,n]));
+    const evidenceIds=[...new Set(result.evidenceRevisionIds||[])];
+    if (!result.text?.trim() || (result.status!=='insufficient'&&!evidenceIds.length) || evidenceIds.some(id=>!allowed.has(id))) throw new Error('AI result has missing or invalid evidence.');
+    if (purpose==='collection' && result.status!=='insufficient' && (!result.action?.trim() || !result.pattern?.trim())) throw new Error('AI result is incomplete.');
+    if(purpose==='collection'&&result.claims!==undefined){
+      if(!Array.isArray(result.claims)||result.claims.length>12)throw new Error('AI result has invalid digest claims.');
+      for(const claim of result.claims){
+        if(!claim.text?.trim()||!['preference','experience','intention','observation','change','uncertainty'].includes(claim.kind)||
+          !['self','external','unknown'].includes(claim.speaker)||typeof claim.period!=='string'||
+          !Array.isArray(claim.evidenceRevisionIds)||!claim.evidenceRevisionIds.length||!Array.isArray(claim.counterRevisionIds)||
+          [...claim.evidenceRevisionIds,...claim.counterRevisionIds].some(id=>!allowed.has(id)))throw new Error('AI result has invalid digest claim evidence.');
+      }
+    }
+    if(purpose==='ask'&&result.claims!==undefined){
+      if(!Array.isArray(result.claims)||result.claims.length>10||(result.status==='ready'&&!result.claims.length)||(result.status==='insufficient'&&result.claims.length))throw new Error('AI result has invalid answer claims.');
+      for(const claim of result.claims){
+        if(!claim.text?.trim()||!['record','inference'].includes(claim.kind)||!['self','external','unknown'].includes(claim.speaker)||
+          typeof claim.period!=='string'||!Array.isArray(claim.evidenceRevisionIds)||!claim.evidenceRevisionIds.length||
+          claim.evidenceRevisionIds.some(id=>!allowed.has(id)||!evidenceIds.includes(id)))throw new Error('AI result has unsupported answer claim.');
+      }
+    }
+    this.assertAiSnapshot(items,contextRunIds);
+    if(purpose==='collection'){
+      const selected=[...new Set(items.map(item=>item.revisionId))].sort(),current=this.insightSourceIds(categoryId);
+      if(selected.length!==current.length||selected.some((id,index)=>id!==current[index])||(fingerprint&&fingerprint!==this.insightFingerprint(categoryId)))throw new Error('Category changed during analysis. Run it again.');
+    }
+    return this.tx(() => {
+      const now=new Date().toISOString(),runId=randomUUID();
+      this.db.prepare('INSERT INTO runs(id,purpose,category_id,model,prompt_version,created_at,context_tracked) VALUES(?,?,?,?,?,?,1)').run(runId,purpose,categoryId,model,'1',now);
+      for(const sourceRunId of new Set(contextRunIds))this.db.prepare('INSERT INTO run_contexts(run_id,source_run_id) VALUES(?,?)').run(runId,sourceRunId);
+      for(const revisionId of new Set(items.map(item=>item.revisionId)))this.db.prepare('INSERT INTO analysis_inputs(run_id,revision_id) VALUES(?,?)').run(runId,revisionId);
+      for(const claim of purpose==='collection'?(result.claims||[]):[]){
+        const claimId=randomUUID();
+        this.db.prepare('INSERT INTO digest_claims(id,run_id,kind,speaker,period,text,created_at) VALUES(?,?,?,?,?,?,?)').run(claimId,runId,claim.kind,claim.speaker,claim.period,claim.text,now);
+        for(const revisionId of new Set(claim.evidenceRevisionIds))this.db.prepare("INSERT INTO digest_claim_evidence(claim_id,revision_id,relation) VALUES(?,?,'support')").run(claimId,revisionId);
+        for(const revisionId of new Set(claim.counterRevisionIds))this.db.prepare("INSERT INTO digest_claim_evidence(claim_id,revision_id,relation) VALUES(?,?,'counter')").run(claimId,revisionId);
+      }
+      if(purpose==='ask')for(const [index,item] of retrieval.entries())this.db.prepare('INSERT INTO retrieval_items(run_id,revision_id,rank,score,method) VALUES(?,?,?,?,?)').run(runId,item.revisionId,index+1,item.score,item.method);
+      if (purpose==='collection') this.db.prepare("UPDATE outputs SET status='superseded' WHERE category_id=? AND kind IN ('summary','pattern','action') AND status='current'").run(categoryId);
+      const save=(kind,text,ids,parentOutputId=null)=>{
+        const id=randomUUID();
+        this.db.prepare('INSERT INTO outputs(id,run_id,kind,text,category_id,analysis_status,parent_output_id,created_at) VALUES(?,?,?,?,?,?,?,?)').run(id,runId,kind,text,categoryId,result.status||'ready',parentOutputId,now);
+        for(const revisionId of ids) this.db.prepare('INSERT INTO evidence(output_id,revision_id) VALUES(?,?)').run(id,revisionId);
+        return id;
+      };
+      const mainId=save(purpose==='ask'?'answer':'summary',result.text,evidenceIds);
+      if(purpose==='ask')for(const claim of result.claims||[]){
+        const claimId=randomUUID();
+        this.db.prepare('INSERT INTO answer_claims(id,output_id,kind,speaker,period,text) VALUES(?,?,?,?,?,?)').run(claimId,mainId,claim.kind,claim.speaker,claim.period,claim.text);
+        for(const revisionId of new Set(claim.evidenceRevisionIds))this.db.prepare('INSERT INTO answer_claim_evidence(claim_id,revision_id) VALUES(?,?)').run(claimId,revisionId);
+      }
+      if(purpose==='collection'&&result.status!=='insufficient') {
+        save('pattern',result.pattern,evidenceIds);
+        save('action',result.action,evidenceIds);
+        if(categoryId==='all'){
+          const active=this.db.prepare("SELECT id,name FROM categories WHERE state='active' AND id!='all'").all();
+          this.db.prepare(`UPDATE outputs SET status='stale' WHERE status='current' AND kind IN ('summary','pattern','action')
+            AND category_id IN (SELECT id FROM categories WHERE state='active' AND id!='all')`).run();
+          for(const note of items) this.db.prepare(`DELETE FROM assignments WHERE note_id=? AND origin='ai'
+            AND category_id IN (SELECT id FROM categories WHERE state='active')`).run(note.id);
+          for(const proposal of result.categories||[]){
+            const category=active.find(c=>c.name.toLocaleLowerCase()===String(proposal.name||'').trim().toLocaleLowerCase());
+            if(!category)continue;
+            for(const revisionId of [...new Set(proposal.revisionIds||[])]){
+              const note=allowed.get(revisionId);
+              if(!note)continue;
+              if(this.db.prepare('SELECT 1 FROM assignment_exclusions WHERE note_id=? AND category_id=? AND revision_id=?').get(note.id,category.id,revisionId))continue;
+              this.db.prepare(`INSERT INTO assignments(note_id,category_id,revision_id,origin) VALUES(?,?,?,'ai')
+                ON CONFLICT(note_id,category_id) DO UPDATE SET revision_id=excluded.revision_id
+                WHERE assignments.origin='ai'`).run(note.id,category.id,revisionId);
+            }
+          }
+        }
+      } else if (purpose==='ask') {
+        if(result.pattern?.trim())save('limitation',result.pattern,evidenceIds,mainId);
+        this.db.prepare('INSERT INTO ask_questions(id,question,output_id,created_at) VALUES(?,?,?,?)').run(randomUUID(),question,mainId,now);
+      }
+      return this.inflateOutput(this.db.prepare('SELECT * FROM outputs WHERE id=?').get(mainId));
+    });
+  }
+  rate(outputId,rating,reason='',comment='') {
+    if(!['good','bad','clear'].includes(rating)) throw new Error('Invalid rating.');
+    if(!this.db.prepare('SELECT id FROM outputs WHERE id=?').get(outputId)) throw new Error('Output not found.');
+    this.db.prepare('INSERT INTO feedback(id,output_id,rating,reason,comment,created_at) VALUES(?,?,?,?,?,?)').run(randomUUID(),outputId,rating,String(reason).slice(0,300),String(comment).slice(0,500),new Date().toISOString());
+    return this.inflateOutput(this.db.prepare('SELECT * FROM outputs WHERE id=?').get(outputId));
+  }
+  questions() { return this.db.prepare('SELECT question,output_id,created_at FROM ask_questions ORDER BY created_at DESC,rowid DESC LIMIT 30').all().map(q=>({...q,output:this.inflateOutput(this.db.prepare('SELECT * FROM outputs WHERE id=?').get(q.output_id))})); }
+  draft(value) { if(value===undefined) return this.db.prepare("SELECT value FROM app_state WHERE key='draft'").get()?.value||''; this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value); }
+  draftOrigin(value) { if(value===undefined) return this.db.prepare("SELECT value FROM app_state WHERE key='draft_origin'").get()?.value==='generated'?'generated':'human'; this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft_origin',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value==='generated'?'generated':'human'); }
+  draftSource(value) { if(value===undefined) return this.db.prepare("SELECT value FROM app_state WHERE key='draft_source'").get()?.value||'unspecified'; this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft_source',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(['unspecified','thought','reference','quote'].includes(value)?value:'unspecified'); }
+  draftEditing(value) { if(value===undefined) return this.db.prepare("SELECT value FROM app_state WHERE key='draft_editing'").get()?.value||''; this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft_editing',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(typeof value==='string'?value:''); }
+  draftUpdatedAt() { return Number(this.db.prepare("SELECT value FROM app_state WHERE key='draft_updated_at'").get()?.value||0); }
+  draftAiExcluded(value){
+    if(value===undefined)return this.db.prepare("SELECT value FROM app_state WHERE key='draft_ai_excluded'").get()?.value==='true';
+    this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft_ai_excluded',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(value?'true':'false');
+  }
+  writeDraftSnapshot(input){
+    const text=String(input?.text||'');
+    if(text.length>100000)throw new Error('Draft is too long.');
+    const updatedAt=Number(input?.updatedAt);
+    if(!Number.isSafeInteger(updatedAt)||updatedAt<=0)throw new Error('Invalid draft timestamp.');
+    if(updatedAt<=this.draftUpdatedAt())return false;
+    this.draft(text);this.draftOrigin(input?.originKind);this.draftSource(input?.sourceKind);
+    this.draftEditing(text?input?.editingId:'');
+    this.draftAiExcluded(!!text&&input?.aiExcluded===true);
+    this.db.prepare("INSERT INTO app_state(key,value) VALUES('draft_updated_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(String(updatedAt));
+    return true;
+  }
+  saveDraftSnapshot(input){return this.tx(()=>this.writeDraftSnapshot(input));}
+  async backupTo(file) { await backup(this.db,file); return file; }
+  validateRelations(){
+    if(this.db.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')throw new Error('Backup integrity check failed.');
+    if(this.db.prepare('PRAGMA foreign_key_check').get())throw new Error('Backup has broken database references.');
+    if(this.db.prepare(`SELECT 1 FROM notes n LEFT JOIN note_revisions r
+      ON r.id=n.current_revision_id AND r.note_id=n.id WHERE r.id IS NULL LIMIT 1`).get())throw new Error('Backup has a note without its current version.');
+    for(const table of ['assignments','assignment_exclusions','classification_jobs']){
+      if(this.db.prepare(`SELECT 1 FROM ${table} a JOIN note_revisions r ON r.id=a.revision_id
+        WHERE r.note_id!=a.note_id LIMIT 1`).get())throw new Error('Backup has a category or job linked to the wrong note version.');
+    }
+    if(this.db.prepare("SELECT 1 FROM categories WHERE id='all' AND state!='active' LIMIT 1").get())throw new Error('Backup has an invalid All notes category.');
+    if(this.db.prepare('SELECT 1 FROM purged_notes p JOIN notes n ON n.id=p.id LIMIT 1').get())throw new Error('Backup contains a permanently deleted note.');
+  }
+  async restoreFrom(source,rollback) {
+    const stage=this.file+'.restore-'+randomUUID();
+    let probe,closed=false;
+    try {
+      probe=new DatabaseSync(source,{readOnly:true});
+      if(probe.prepare('PRAGMA integrity_check').get().integrity_check!=='ok')throw new Error('Backup integrity check failed.');
+      for(const table of ['notes','note_revisions','outputs','evidence','feedback']) if(!probe.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table))throw new Error('This is not a pure backup.');
+      await backup(probe,stage);
+      probe.close();probe=null;
+      const prepared=new Store(stage);
+      try{
+        // Restoring an older backup must not silently re-enable explicitly excluded notes.
+        for(const note of this.db.prepare('SELECT id FROM notes WHERE ai_excluded=1').all()){
+          if(prepared.db.prepare('SELECT 1 FROM notes WHERE id=?').get(note.id))prepared.setAiExcluded({id:note.id,excluded:true},{allowTrashed:true});
+        }
+        prepared.validateRelations();
+        const tombstones=this.db.prepare('SELECT id,purged_at AS purgedAt FROM purged_notes').all();
+        for(const item of tombstones){
+          if(prepared.db.prepare('SELECT 1 FROM notes WHERE id=?').get(item.id))throw new Error('This backup would restore a permanently deleted note.');
+          prepared.db.prepare('INSERT INTO purged_notes(id,purged_at) VALUES(?,?) ON CONFLICT(id) DO NOTHING').run(item.id,item.purgedAt);
+        }
+        prepared.validateRelations();
+      }finally{prepared.close();}
+      fs.mkdirSync(path.dirname(rollback),{recursive:true});
+      await this.backupTo(rollback);
+      this.close();closed=true;
+      fs.rmSync(this.file+'-wal',{force:true});fs.rmSync(this.file+'-shm',{force:true});
+      fs.renameSync(stage,this.file);
+      this.db=new Store(this.file).db;
+    } catch(error) {
+      if(closed){fs.copyFileSync(rollback,this.file);this.db=new Store(this.file).db;}
+      throw error;
+    } finally {
+      if(probe)probe.close();
+      fs.rmSync(stage,{force:true});fs.rmSync(stage+'-wal',{force:true});fs.rmSync(stage+'-shm',{force:true});
+    }
+    return rollback;
+  }
+  importLegacy(rows) {
+    if(!Array.isArray(rows)||rows.length>100000) throw new Error('Invalid notes file.');
+    const demoIds=new Set(['rain','film','cafe','quiet','alone','habit','coffee','season','walk','cinema','watch','book','room','library','sea','music-night','music-focus']);
+    return this.tx(()=>{
+      let count=0;
+      for(const item of rows) {
+        if(typeof item?.id!=='string'||typeof item.text!=='string'||!item.text.trim()||item.text.length>100000) continue;
+        if(this.db.prepare('SELECT id FROM notes WHERE id=?').get(item.id)||this.db.prepare('SELECT id FROM purged_notes WHERE id=?').get(item.id)) continue;
+        const date=Number.isFinite(Date.parse(item.date))?new Date(item.date).toISOString():new Date().toISOString();
+        const revisionId=randomUUID(),demo=demoIds.has(item.id)?1:0;
+        this.db.prepare('INSERT INTO notes(id,current_revision_id,created_at,origin_kind,is_demo) VALUES(?,?,?,?,?)').run(item.id,revisionId,date,item.origin?'generated':'human',demo);
+        this.db.prepare('INSERT INTO note_revisions(id,note_id,body,created_at) VALUES(?,?,?,?)').run(revisionId,item.id,item.text,date);
+        count++;
+      }
+      return count;
+    });
+  }
+  close(){this.db.close();}
+}
+module.exports={Store};

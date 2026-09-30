@@ -1,0 +1,136 @@
+/* A quiet surface for fragments: ink, a hairline of light, then motion on intent. */
+.native-app .timeline{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:stretch;
+  gap:16px 18px;
+}
+.native-app .timeline .date-label{
+  grid-column:1/-1;
+  margin:26px 0 1px;
+  color:#9bb9c7;
+  font-size:10px;
+}
+.native-app .note-card{
+  position:relative;
+  isolation:isolate;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  min-width:0;
+  min-height:204px;
+  width:100%;
+  overflow:hidden;
+  text-align:left;
+  padding:18px 21px 17px;
+  border:1px solid #a2c5d333;
+  border-radius:9px;
+  background:linear-gradient(148deg,#253c4a9c 0%,#182a39c7 42%,#132331e0 100%);
+  box-shadow:inset 0 1px #e5f4f412,0 12px 30px #07111b24;
+  color:#dce9eb;
+  transition:transform 380ms cubic-bezier(.2,.8,.2,1),border-color 350ms ease,background-color 350ms ease,box-shadow 350ms ease;
+  animation:pure-card-arrive 360ms cubic-bezier(.2,.75,.2,1) both;
+}
+.native-app .note-card:nth-of-type(2){animation-delay:35ms}
+.native-app .note-card:nth-of-type(3){animation-delay:70ms}
+.native-app .note-card:nth-of-type(4){animation-delay:105ms}
+.native-app .note-card:nth-of-type(5){animation-delay:140ms}
+.native-app .note-card:nth-of-type(6){animation-delay:175ms}
+.native-app .note-card::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  height:1px;
+  background:linear-gradient(90deg,transparent 5%,#dbeff0 42%,transparent 78%);
+  opacity:.28;
+  transform:translateX(-60%);
+  transition:transform 650ms cubic-bezier(.16,1,.3,1),opacity 450ms ease;
+  pointer-events:none;
+}
+.native-app .note-card::after{
+  content:'';
+  position:absolute;
+  width:180px;
+  height:110px;
+  right:-90px;
+  top:-67px;
+  border-radius:50%;
+  border:1px solid #c5e3e62b;
+  box-shadow:0 0 0 13px #b9d8de08,0 0 0 31px #b9d8de04;
+  opacity:.35;
+  transform:rotate(-17deg) translateY(0);
+  transition:transform 550ms cubic-bezier(.16,1,.3,1),opacity 450ms ease;
+  pointer-events:none;
+}
+.native-app .note-card:hover,.native-app .note-card:focus-visible{
+  transform:translateY(-4px);
+  border-color:#bad8de8c;
+  background-color:#223f50;
+  box-shadow:inset 0 1px #e5f4f428,0 18px 35px #07111b4d;
+}
+.native-app .note-card:hover::before,.native-app .note-card:focus-visible::before{opacity:.82;transform:translateX(20%)}
+.native-app .note-card:hover::after,.native-app .note-card:focus-visible::after{opacity:.7;transform:rotate(-17deg) translate(-12px,9px)}
+.native-app .note-card:active{transform:translateY(-1px) scale(.992);transition-duration:110ms}
+.native-app .note-card.selected{border-color:#d0e7e4ad;box-shadow:inset 0 0 0 1px #d7eded2b,0 15px 34px #07111b4a;background-color:#244656}
+.note-card-head,.note-card-kind,.note-card-foot{display:flex;align-items:center}
+.note-card-head{justify-content:space-between;gap:12px;width:100%;color:#a8c2cb;font:10px 'SFMono-Regular',Consolas,monospace;letter-spacing:.015em}
+.note-card-kind{gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-card-kind svg{width:13px;height:13px;color:#c2d8da}
+.native-app .note-card time{padding:0;color:#92aebb;white-space:nowrap;font:inherit}
+.native-app .note-card-body{display:flex;gap:13px;min-width:0;margin:25px 0 auto}
+.note-card-thread{display:block;flex:0 0 1px;align-self:stretch;min-height:35px;background:linear-gradient(180deg,#d6e7e8bb,#b8d7dd18)}
+.note-card-text{display:-webkit-box;flex:1;min-width:0;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;overflow-wrap:anywhere;white-space:pre-wrap;color:#e1eaeb;font-size:14px;line-height:1.75;letter-spacing:.005em}
+.note-card-thumbnail{display:block;flex:0 0 72px;width:72px;height:72px;overflow:hidden;border:1px solid #aacbd147;border-radius:4px;background:#0e1e2b}
+.note-card-thumbnail img{display:block;width:100%;height:100%;object-fit:cover}
+.note-card-thumbnail .image-loading{display:grid;place-items:center;width:100%;height:100%;padding:7px;text-align:center;font-size:9px;color:#8ca9b6}
+.note-card-article{display:flex;flex-direction:column;gap:6px;margin-top:16px;padding:11px 12px;border:1px solid #a7cbd233;background:#b6d8df0c;border-radius:4px;min-width:0}
+.note-card-article>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9dbbc5;font:9px 'SFMono-Regular',Consolas,monospace;letter-spacing:.06em}
+.note-card-article strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#dbe9e9;font-size:12px;line-height:1.5;font-weight:500}
+.note-card-foot{justify-content:space-between;gap:12px;width:100%;margin-top:22px;padding-top:13px;border-top:1px solid #a4c3ca24;color:#93aeba;font-size:10px;letter-spacing:.025em}
+.note-card-foot>svg{width:14px;height:14px;transition:transform 320ms cubic-bezier(.16,1,.3,1);color:#bad2d8}
+.native-app .note-card:hover .note-card-foot>svg,.native-app .note-card:focus-visible .note-card-foot>svg{transform:translateX(4px)}
+
+.native-app .steps-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:18px;margin-top:34px}
+.native-app .step-card{
+  position:relative;
+  isolation:isolate;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  gap:20px;
+  padding:26px;
+  border:1px solid #a2c5d333;
+  border-radius:9px;
+  background:linear-gradient(145deg,#21394a99,#142533d9);
+  box-shadow:inset 0 1px #e5f4f411,0 12px 30px #07111b22;
+  transition:transform 380ms cubic-bezier(.2,.8,.2,1),border-color 350ms ease,box-shadow 350ms ease;
+}
+.native-app .step-card::before{content:'';position:absolute;top:0;left:25px;width:38px;height:1px;background:#d8e8e8a3;transform-origin:left;transform:scaleX(.45);transition:transform 500ms cubic-bezier(.16,1,.3,1)}
+.native-app .step-card:hover,.native-app .step-card:focus-within{transform:translateY(-3px);border-color:#bad8de76;box-shadow:inset 0 1px #e5f4f41d,0 18px 35px #07111b45}
+.native-app .step-card:hover::before,.native-app .step-card:focus-within::before{transform:scaleX(1)}
+.native-app .step-card .step-index{padding:0;color:#aec6cf}
+.native-app .step-card .step-content{display:flex;flex-direction:column;flex:1;align-items:flex-start}
+.native-app .step-card .step-content>p{font-size:18px;line-height:1.7;max-width:40ch;margin:0 0 14px}
+.native-app .step-card .native-sources{margin:8px 0}
+.native-app .step-card .native-rating{margin-top:auto;padding-top:16px}
+.native-app .step-card .start-action{margin-top:20px}
+.native-app .steps-list>.analysis-empty{grid-column:1/-1}
+
+.inspector-article{margin:21px 0 25px;padding:16px 0;border-top:1px solid #a9cbd236;border-bottom:1px solid #a9cbd236}
+.inspector-article h3{font-size:15px;line-height:1.55;font-weight:500;color:#e5eeef;margin:10px 0 7px;overflow-wrap:anywhere}
+.inspector-article p{color:#abc3cb;font-size:11px;line-height:1.7;margin:8px 0;overflow-wrap:anywhere}
+.inspector-article small{color:#8daab6;font-size:10px}
+.inspector-article>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.inspector-article .secondary{display:inline-flex;align-items:center;gap:7px;font-size:11px;padding:8px 10px}
+.inspector-article .secondary svg,.inspector-article .text-button svg{width:13px;height:13px}
+
+@keyframes pure-card-arrive{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:800px){.native-app .timeline,.native-app .steps-list{grid-template-columns:1fr}.native-app .note-card{min-height:178px}}
+@media(prefers-reduced-motion:reduce){.native-app .note-card,.native-app .step-card{animation:none;transition:none}.native-app .note-card::before,.native-app .note-card::after,.native-app .note-card-foot>svg,.native-app .step-card::before{transition:none}}
+html[data-reduced="true"] .native-app .note-card,html[data-reduced="true"] .native-app .step-card{animation:none;transition:none}
+html[data-reduced="true"] .native-app .note-card::before,html[data-reduced="true"] .native-app .note-card::after,html[data-reduced="true"] .native-app .note-card-foot>svg,html[data-reduced="true"] .native-app .step-card::before{transition:none}
+@media(prefers-reduced-motion:reduce){.native-app .note-card:hover,.native-app .note-card:focus-visible,.native-app .note-card:active,.native-app .step-card:hover,.native-app .step-card:focus-within{transform:none}.native-app .note-card:hover::before,.native-app .note-card:focus-visible::before,.native-app .note-card:hover::after,.native-app .note-card:focus-visible::after,.native-app .note-card:hover .note-card-foot>svg,.native-app .note-card:focus-visible .note-card-foot>svg,.native-app .step-card:hover::before,.native-app .step-card:focus-within::before{transform:none}}
+html[data-reduced="true"] .native-app .note-card:hover,html[data-reduced="true"] .native-app .note-card:focus-visible,html[data-reduced="true"] .native-app .note-card:active,html[data-reduced="true"] .native-app .step-card:hover,html[data-reduced="true"] .native-app .step-card:focus-within{transform:none}
+html[data-reduced="true"] .native-app .note-card:hover::before,html[data-reduced="true"] .native-app .note-card:focus-visible::before,html[data-reduced="true"] .native-app .note-card:hover::after,html[data-reduced="true"] .native-app .note-card:focus-visible::after,html[data-reduced="true"] .native-app .note-card:hover .note-card-foot>svg,html[data-reduced="true"] .native-app .note-card:focus-visible .note-card-foot>svg,html[data-reduced="true"] .native-app .step-card:hover::before,html[data-reduced="true"] .native-app .step-card:focus-within::before{transform:none}
