@@ -1,55 +1,50 @@
-import React,{useMemo,useRef,useState} from 'react';
-import {ArrowRightIcon,EnterFullScreenIcon,MinusIcon,PlusIcon,Share2Icon} from '@radix-ui/react-icons';
-import SynapseField from './SynapseField.jsx';
+import React,{useEffect,useMemo,useState} from 'react';
+import {ArrowRightIcon,CheckIcon,LightningBoltIcon,PlusIcon,Share1Icon,ClockIcon,Link2Icon,ArrowLeftIcon} from '@radix-ui/react-icons';
+import MemoryBrain from './MemoryBrain.jsx';
+import {PageHeading,InfoDetails} from './UiPrimitives.jsx';
+import {DAY,histogram,inPeriod} from './memoryMap.js';
 import './graph-view.css';
-
-const WIDTH=1000,HEIGHT=620,CENTER={x:500,y:310};
-function hash(value){let result=2166136261;for(const char of value){result^=char.codePointAt(0);result=Math.imul(result,16777619)}return result>>>0;}
-function layout(data){
-  const hubs=new Map(),nodes=new Map(),categories=data.categories||[];
-  categories.forEach((category,index)=>{
-    const angle=-Math.PI/2+index*2*Math.PI/Math.max(1,categories.length);
-    const radius=categories.length===1?0:categories.length===2?200:218;
-    hubs.set(category.id,{x:CENTER.x+Math.cos(angle)*radius,y:CENTER.y+Math.sin(angle)*radius,...category});
-  });
-  const groups=new Map();
-  for(const note of data.notes||[]){const ids=note.categories.length?note.categories.map(item=>item.id):['other'];for(const id of ids){if(!groups.has(id))groups.set(id,[]);groups.get(id).push(note.id)}}
-  for(const note of data.notes||[]){
-    const ids=note.categories.length?note.categories.map(item=>item.id):['other'];
-    const anchors=ids.map(id=>hubs.get(id)).filter(Boolean);
-    const anchor=anchors.length?{x:anchors.reduce((sum,item)=>sum+item.x,0)/anchors.length,y:anchors.reduce((sum,item)=>sum+item.y,0)/anchors.length}:CENTER;
-    const seed=hash(note.id),angle=(seed%360)*Math.PI/180;
-    const radius=ids.length>1?35+(seed%45):57+(seed%93);
-    nodes.set(note.id,{x:Math.max(34,Math.min(WIDTH-34,anchor.x+Math.cos(angle)*radius)),y:Math.max(34,Math.min(HEIGHT-34,anchor.y+Math.sin(angle)*radius)),bridge:ids.length>1,note,ids});
-  }
-  return {hubs,nodes,groups};
-}
-export default function GraphView({data,loading,error,reduced,selectedNoteId,onNote,onCategory,onAddNote,onRetry}){
-  const [activeCategory,setActiveCategory]=useState(null),[view,setView]=useState({x:0,y:0,z:1});
-  const drag=useRef(null);
-  const graph=useMemo(()=>layout(data||{categories:[],notes:[]}),[data]);
-  const selectedCategory=graph.hubs.get(activeCategory);
-  const selectedNotes=selectedCategory?(graph.groups.get(activeCategory)||[]).map(id=>graph.nodes.get(id)?.note).filter(Boolean):[];
-  const edges=[...graph.nodes.values()].flatMap(node=>node.ids.map(id=>({node,hub:graph.hubs.get(id),id})).filter(item=>item.hub));
-  const highlighted=edge=>edge.node.note.id===selectedNoteId||edge.id===activeCategory;
-  const zoom=amount=>setView(old=>({...old,z:Math.max(.7,Math.min(1.8,old.z+amount))}));
-  const reset=()=>{setView({x:0,y:0,z:1});setActiveCategory(null)};
-  return <div className="graph-page">
-    <div className="graph-intro"><div><span className="terminal-label"><span className="live-tick"/> memory / connections</span><h2>Follow a thread.</h2><p>カテゴリへの所属と、複数の場所に現れるメモをたどる。</p></div><div className="graph-intro-meta"><Share2Icon/><span>{data?.shown||0} / {data?.total||0} notes</span></div></div>
-    <div className="graph-explainer">線は現在のカテゴリ所属です。AIが推測した意味的な関連ではありません。傾向や提案はCollectionsで確認できます。</div>
-    {loading?<div className="graph-message" role="status">Loading your connections…</div>:error?<div className="graph-message" role="alert">{error}<button onClick={onRetry}>Try again</button></div>:!data?.shown?<div className="graph-message"><h3>A thought starts here.</h3><p>メモを残すと、カテゴリとのつながりを表示します。</p><button className="primary" onClick={onAddNote}><PlusIcon/>Add a note</button></div>:
-    <div className="graph-stage"><SynapseField reduced={reduced} variant="graph"/><div className="graph-stage-label">pure.network / local</div>
-      <svg className="real-graph" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Notes linked to their current categories" onPointerDown={event=>{if(event.target.closest('[data-graph-node]'))return;event.currentTarget.setPointerCapture(event.pointerId);drag.current={x:event.clientX,y:event.clientY,view}}} onPointerMove={event=>{if(!drag.current)return;const scale=WIDTH/event.currentTarget.getBoundingClientRect().width;setView({...drag.current.view,x:drag.current.view.x+(event.clientX-drag.current.x)*scale,y:drag.current.view.y+(event.clientY-drag.current.y)*scale})}} onPointerUp={()=>{drag.current=null}} onPointerCancel={()=>{drag.current=null}}>
-        <g transform={`translate(${CENTER.x+view.x} ${CENTER.y+view.y}) scale(${view.z}) translate(${-CENTER.x} ${-CENTER.y})`}>
-          {edges.map(edge=><line key={`${edge.node.note.id}-${edge.id}`} x1={edge.hub.x} y1={edge.hub.y} x2={edge.node.x} y2={edge.node.y} className={'graph-link '+(highlighted(edge)?'lit':'')}/>) }
-          {[...graph.hubs.values()].map(hub=><g key={hub.id} data-graph-node role="button" tabIndex="0" aria-label={`${hub.name} category, ${graph.groups.get(hub.id)?.length||0} notes`} className={'graph-hub '+(activeCategory===hub.id?'active':'')} transform={`translate(${hub.x} ${hub.y})`} onClick={()=>{setActiveCategory(hub.id);onNote(null)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setActiveCategory(hub.id);onNote(null)}}}><circle className="hub-halo" r="32"/><circle className="hub-core" r="7"/><text y="-43" textAnchor="middle">{hub.name}</text><text className="hub-count" y="48" textAnchor="middle">{graph.groups.get(hub.id)?.length||0} notes</text></g>)}
-          {[...graph.nodes.values()].map(node=><g key={node.note.id} data-graph-node role="button" tabIndex="0" aria-label={`Open note: ${node.note.text?.slice(0,55)||'Image note'}`} className={'graph-note '+(node.bridge?'bridge ':'')+(selectedNoteId===node.note.id?'active':'')} transform={`translate(${node.x} ${node.y})`} onClick={()=>{setActiveCategory(null);onNote(node.note.id)}} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setActiveCategory(null);onNote(node.note.id)}}}><circle className="note-hit" r="17"/><circle className="note-halo" r={node.bridge?12:8}/><circle className="note-core" r={node.bridge?4:3}/><title>{node.note.text?.slice(0,120)||'Image note'}</title></g>)}
-        </g>
-      </svg>
-      <div className="graph-controls"><button aria-label="Zoom out" onClick={()=>zoom(-.15)}><MinusIcon/></button><span>{Math.round(view.z*100)}%</span><button aria-label="Zoom in" onClick={()=>zoom(.15)}><PlusIcon/></button><button aria-label="Reset graph" onClick={reset}><EnterFullScreenIcon/></button></div>
-      <div className="graph-legend"><span><i/>category membership</span><span><i className="bridge"/>multiple categories</span></div>
-    </div>}
-    {selectedCategory&&<section className="graph-selection"><div><span className="eyebrow">CATEGORY / {selectedCategory.name}</span><h3>{selectedNotes.length} connected notes</h3><p>このカテゴリに現在所属する原文です。</p></div><button className="text-button" onClick={()=>onCategory(selectedCategory.id)}>Open Collection <ArrowRightIcon/></button><div className="graph-selection-notes">{selectedNotes.slice(0,6).map(note=><button key={note.id} onClick={()=>onNote(note.id)}>{note.text?.slice(0,120)||'Image note'}<ArrowRightIcon/></button>)}</div></section>}
-    {data?.total>data?.shown&&<p className="graph-limit">表示を軽く保つため、最近の{data.shown}件を表示しています。検索とAskは全件が対象です。</p>}
-  </div>;
+const EMPTY=[];
+const date=value=>new Date(value).toLocaleDateString('ja-JP',{year:'numeric',month:'short',day:'numeric'});
+const source={thought:'本人の感想',reference:'外部の資料',quote:'引用',unspecified:'種類未設定'};
+export default function GraphView({data,loading,error,reduced,selectedNoteId,onNote,onAddNote,onRetry,onAnalyze,onReview,onAsk,onEditNote,renderNoteExtras,onSettings,canAnalyze,answerHistory=EMPTY}){
+ const [sourceLimit,setSourceLimit]=useState(12),[themeId,setThemeId]=useState(null),[days,setDays]=useState(30),[end,setEnd]=useState(()=>Date.now()),[mode,setMode]=useState('interest'),[pending,setPending]=useState(''),[issue,setIssue]=useState(''),[correction,setCorrection]=useState(''),[correcting,setCorrecting]=useState(false),[question,setQuestion]=useState(''),[answer,setAnswer]=useState(null),[notice,setNotice]=useState('');
+ const notes=data?.notes||EMPTY;
+ const themes=useMemo(()=>data?.themes.length?data.themes:(data?.localThemes||EMPTY).filter(t=>!data.hiddenThemes.some(h=>h.label===t.label)),[data]);
+ const theme=themes.find(t=>t.id===themeId),note=notes.find(n=>n.id===selectedNoteId);
+ const today=new Date().setHours(23,59,59,999),start=notes.length?notes.reduce((oldest,n)=>Math.min(oldest,Date.parse(n.date)),today):today-DAY;
+ const counts=useMemo(()=>histogram(notes,start,today),[notes,start,today]),max=Math.max(1,...counts);
+ const current=notes.filter(n=>inPeriod(n.date,end,days)).length,previous=days?notes.filter(n=>inPeriod(n.date,end-days*DAY,days)).length:0;
+ const cited=useMemo(()=>answer?.evidence?.filter(e=>e.valid&&notes.some(n=>n.revisionId===e.revisionId&&!n.aiExcluded)).map(e=>e.noteId)||EMPTY,[answer,notes]);
+ useEffect(()=>{if(themeId&&!themes.some(t=>t.id===themeId))setThemeId(null)},[themes,themeId]);
+ useEffect(()=>{if(answer&&(!answerHistory.some(q=>q.output?.id===answer.id&&q.output.status==='current')||answer.evidence.some(e=>!notes.some(n=>n.revisionId===e.revisionId&&!n.aiExcluded)))){setAnswer(null);setMode('interest');setNotice('原文が変わったため、前の回答を非表示にしました。')}},[notes,answer,answerHistory]);
+ function selectTheme(id){setSourceLimit(12);setThemeId(id);onNote(null);setCorrecting(false);setCorrection('');setIssue('')}
+ function selectNote(id){setThemeId(null);onNote(id);setCorrecting(false)}
+ async function analyze(){setPending('analysis');setIssue('');setNotice('');try{const result=await onAnalyze();setThemeId(null);setNotice(result.themes.length?'関連を更新しました。解釈を開いて、原文と照らし合わせてください。':'十分な根拠のある関連は見つかりませんでした。共通する言葉を表示します。')}catch(e){setIssue(e.message)}finally{setPending('')}}
+ async function review(decision,id=themeId){setPending('review');setIssue('');try{await onReview({id,decision,comment:correction});setCorrecting(false);setNotice(decision==='correct'?'訂正を保存しました。次の分析と関連する質問で参照します。':decision==='hide'?'関連を非表示にしました。下の一覧から戻せます。':'確認を保存しました。')}catch(e){setIssue(e.message)}finally{setPending('')}}
+ async function ask(e){e.preventDefault();if(!question.trim())return;setPending('ask');setIssue('');try{const result=await onAsk(question);setAnswer(result);setMode('evidence');setDays(0);setEnd(today);selectTheme(null)}catch(e){setIssue(e.message)}finally{setPending('')}}
+ const askForm=<form className="memory-ask" onSubmit={ask}><label htmlFor="memory-question">メモに質問</label><div><input id="memory-question" value={question} onChange={e=>setQuestion(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&e.nativeEvent.isComposing)e.preventDefault()}} placeholder="最近、何に惹かれている？" maxLength={1000} disabled={!!pending}/><button aria-label="メモに質問を送信" disabled={!!pending||!canAnalyze||!question.trim()}><ArrowRightIcon/></button></div><InfoDetails label="原文 最大30件を送信"><p>質問と検索した原文を選択したCodexモデルへ送ります。</p></InfoDetails></form>;
+ return <section className="memory-page" aria-label="記憶の地図">
+  <PageHeading Icon={Share1Icon} title="つながり" meta={`${notes.length}件`} actions={<button className="memory-analyze" onClick={analyze} disabled={!!pending||!canAnalyze||(data?.eligibleCount||0)<2}><LightningBoltIcon/>{pending==='analysis'?'分析中…':data?.analysisAt?'更新':'関連を探す'}</button>}/>
+  {error?<div className="memory-error" role="alert">{error}<button onClick={onRetry}>再読み込み</button></div>:null}
+  <div className="memory-toolbar"><div role="group" aria-label="地図の表示"><button aria-pressed={mode==='interest'} onClick={()=>setMode('interest')}><Share1Icon aria-hidden="true"/>関心</button><button aria-pressed={mode==='changes'} onClick={()=>setMode('changes')}><ClockIcon aria-hidden="true"/>変化</button><button aria-pressed={mode==='evidence'} onClick={()=>setMode('evidence')}><Link2Icon aria-hidden="true"/>根拠</button></div><label><ClockIcon aria-hidden="true"/>期間<select aria-label="明るく表示する期間" value={days} onChange={e=>setDays(Number(e.target.value))}><option value="7">7日間</option><option value="30">30日間</option><option value="90">90日間</option><option value="0">全期間</option></select></label></div>
+  <div className="memory-workspace">
+   <div className="memory-map-column"><MemoryBrain notes={notes} themes={themes} end={end} days={days} selectedNoteId={selectedNoteId} selectedThemeId={themeId} citedIds={mode==='evidence'?cited:EMPTY} reduced={reduced} onNote={selectNote} onTheme={selectTheme}/>
+    <div className="memory-field-caption">{loading?'読み込み中…':mode==='evidence'?answer?`引用 ${cited.length}件`:'質問の根拠を表示':mode==='changes'?days?`${current}件 / 前の期間 ${previous}件`:'期間を選択':<><span className="memory-line-key"/>{themes.some(t=>t.origin==='ai')?'破線 = AIの仮説':'共通する言葉'}</>}</div>
+    <div className="memory-timeline"><div><span>記録の時間</span><strong>{days?`${date(end-days*DAY)} — ${date(end)}`:'全期間'}</strong><button onClick={()=>setEnd(today)}>今日へ</button></div><div className="memory-bars" aria-hidden="true">{counts.map((v,i)=><i key={i} style={{height:`${Math.max(2,v/max*30)}px`,opacity:(start+(today-start)*(i+.5)/counts.length)<=end?.8:.18}}/>)}</div><input type="range" aria-label="地図の基準日" min={start} max={Math.max(start+1,today)} step={DAY} value={Math.max(start,end)} onChange={e=>setEnd(Number(e.target.value))}/><div className="memory-time-labels"><span>{date(start)}</span><span>{date(today)}</span></div><InfoDetails label="地図の見方"><p>光点を開くと原文を読めます。明るさは記録の新しさ、破線はAIの仮説を表します。好みの強さではありません。{notes.length>360?'光点は最大360件。詳細と質問は全件が対象です。':''}</p></InfoDetails></div>
+   </div>
+   <aside className="memory-detail" aria-label="地図の詳細">
+    <div className="memory-detail-scroll">
+     {(theme||note)&&<button className="memory-back" onClick={()=>{selectTheme(null);onNote(null)}}><ArrowLeftIcon/>一覧</button>}
+     {note?<><span className="memory-detail-kicker">原文 / {date(note.date)}</span><h3>メモ</h3><p className="memory-original">{note.text||'画像メモ'}</p><div className="memory-note-meta"><span>{source[note.sourceKind]||'メモ'}</span>{note.aiExcluded&&<span>AI解析の対象外</span>}{!!note.attachments?.length&&<span>画像 {note.attachments.length}枚</span>}</div>{renderNoteExtras?.(note)}<button className="memory-small-button" onClick={()=>onEditNote(note)}>メモを編集 <ArrowRightIcon/></button></>
+     :theme?<><span className="memory-detail-kicker">{theme.origin==='local'?'共通する言葉':theme.state==='confirmed'?'確認済みの関連':'AIによる解釈'}</span><h3>{theme.label}</h3><p className="memory-description">{theme.description}</p>{theme.correction&&<div className="memory-correction"><span>あなたの訂正</span><p>{theme.correction}</p></div>}{theme.origin==='ai'&&<div className="memory-review"><button disabled={!!pending} onClick={()=>review(theme.state==='confirmed'?'reset':'confirm')}><CheckIcon/>{theme.state==='confirmed'?'確認を取り消す':'しっくりくる'}</button><button disabled={!!pending} onClick={()=>{setCorrecting(!correcting);setCorrection(theme.correction||'')}}>訂正する</button><button disabled={!!pending} onClick={()=>review('hide')}>関連を外す</button></div>}{correcting&&<form className="memory-correction-form" onSubmit={e=>{e.preventDefault();review('correct')}}><label htmlFor="memory-correction">どう捉えるのが近いですか？</label><textarea id="memory-correction" value={correction} onChange={e=>setCorrection(e.target.value)} maxLength={500} required/><button disabled={!!pending||!correction.trim()}>訂正を保存</button></form>}<div className="memory-evidence-heading">根拠となる原文 <span>{theme.evidence.length}件</span></div>{theme.evidence.slice(0,sourceLimit).map(e=>{const n=notes.find(n=>n.id===e.noteId);return n&&<button className="memory-evidence" key={e.revisionId} onClick={()=>selectNote(e.noteId)}><span>{date(n.date)} · {source[n.sourceKind]}</span><q>{e.quote}</q><small>原文を開く <ArrowRightIcon/></small></button>})}{theme.evidence.length>sourceLimit&&<button className="memory-small-button" onClick={()=>setSourceLimit(old=>old+12)}>原文をさらに表示（残り{theme.evidence.length-sourceLimit}件）</button>}<button className="memory-small-button" onClick={()=>setQuestion(`「${theme.label}」について、私のメモから何が分かる？`)}>この関連について質問する <ArrowRightIcon/></button></>
+     :mode==='evidence'&&answer?<><span className="memory-detail-kicker">回答 / 原文に基づく解釈</span><h3>質問の根拠</h3><p className="memory-description">{answer.text}</p>{answer.limitation&&<p className="memory-limit">{answer.limitation}</p>}<div className="memory-evidence-heading">引用した原文 <span>{cited.length}件</span></div>{answer.evidence.filter(e=>cited.includes(e.noteId)).map(e=><button className="memory-evidence" key={e.revisionId} onClick={()=>selectNote(e.noteId)}><span>{source[e.sourceKind]}</span><p>{e.text.slice(0,180)}{e.text.length>180?'…':''}</p><small>原文を開く <ArrowRightIcon/></small></button>)}</>
+     :<><h3>{mode==='evidence'?'回答と原文':mode==='changes'?'期間ごとの記録':'共通点'}</h3><div className="memory-theme-list">{themes.map(t=><button key={t.id} onClick={()=>selectTheme(t.id)}><i/><span>{t.label}<small>{mode==='changes'?`引用原文: ${t.evidence.filter(e=>{const n=notes.find(n=>n.id===e.noteId);return n&&inPeriod(n.date,end,days)}).length}件 / 前の期間 ${days?t.evidence.filter(e=>{const n=notes.find(n=>n.id===e.noteId);return n&&inPeriod(n.date,end-days*DAY,days)}).length:'—'}件`:t.origin==='local'?'共通する言葉':t.state==='confirmed'?'確認済み':t.state==='corrected'?'訂正あり':'AIの仮説'}</small></span><strong>{t.evidence.length}</strong><ArrowRightIcon/></button>)}</div>{!themes.length&&<p className="memory-description">{notes.length<2?'メモをあと少し':'関連はまだありません'}</p>}{notes.length<2&&<button className="memory-small-button" onClick={onAddNote}><PlusIcon/>メモを追加</button>}</>}
+     {data?.hiddenThemes.length>0&&<details className="memory-hidden"><summary>外した関連 · {data.hiddenThemes.length}件</summary>{data.hiddenThemes.map(t=><div key={t.id}><span>{t.label}</span><button disabled={!!pending} onClick={()=>review('reset',t.id)}>戻す</button></div>)}</details>}
+     <div className="memory-status" aria-live="polite">{pending&&<p role="status">{pending==='analysis'?'原文の共通点を探しています…':pending==='ask'?'原文を検索して回答を作っています…':'保存しています…'}</p>}{issue&&<p role="alert" className="memory-error">{issue}</p>}{notice&&!pending&&<p>{notice}</p>}</div>
+    </div>
+    <div className="memory-detail-footer">{askForm}{!canAnalyze&&<button className="memory-connect" onClick={onSettings}><Link2Icon/>Codexに接続 <ArrowRightIcon/></button>}<InfoDetails label="関連の分析 · 原文 最大72件を送信"><p>原文（各1,800文字）、確認・訂正をCodexへ送ります。AI解析の対象外メモ・提案の下書きは送りません。</p>{data?.analysisAt&&<p>前回: {date(data.analysisAt)} · {data.sampleCount}件</p>}</InfoDetails></div>
+   </aside>
+  </div>
+ </section>;
 }

@@ -1,0 +1,107 @@
+/* Cut corners and offset sheets, inspired by 21st.dev's Stagger Testimonials. */
+.native-app .timeline{gap:28px 26px;padding:5px 8px 22px}
+.native-app .notes-workspace.has-notes .notes-library{container-type:inline-size}
+.native-app .note-card{
+  --card-cut:28px;
+  --card-tilt:-1deg;
+  --card-offset:0px;
+  --card-surface:#1c2b37;
+  --card-border:#738ba071;
+  --card-ink:#e7edf0;
+  --card-muted:#9fadb9;
+  --card-active-surface:#121c25;
+  --card-active-border:#bfced9;
+  --card-active-ink:#f3f5f6;
+  --card-active-muted:#b8c3cc;
+  min-height:234px;
+  padding:25px 26px 23px;
+  overflow:visible;
+  border:0;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+  color:var(--card-ink);
+  transform:translateY(var(--card-offset)) rotate(var(--card-tilt));
+  transform-origin:50% 80%;
+  transition:transform 380ms cubic-bezier(.2,.75,.25,1),color 240ms;
+  animation:stagger-card-arrive 380ms cubic-bezier(.2,.75,.25,1) backwards;
+  animation-delay:var(--card-delay,0ms);
+}
+.native-app .note-card:nth-of-type(n){animation-delay:var(--card-delay,0ms)}
+.native-app .note-card:nth-of-type(even){--card-tilt:1deg;--card-offset:11px}
+.native-app .note-card::before,.native-app .note-card.just-saved::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  width:auto;
+  height:auto;
+  z-index:-1;
+  border:0;
+  border-radius:0;
+  background:var(--card-border);
+  clip-path:polygon(0 0,calc(100% - var(--card-cut)) 0,100% var(--card-cut),100% 100%,0 100%);
+  opacity:1;
+  transform:none;
+  pointer-events:none;
+  transition:background 260ms;
+  animation:none;
+}
+.native-app .note-card::after{
+  content:'';
+  position:absolute;
+  inset:1px;
+  width:auto;
+  height:auto;
+  z-index:-1;
+  border:0;
+  border-radius:0;
+  background:var(--card-surface);
+  clip-path:polygon(0 0,calc(100% - var(--card-cut)) 0,100% var(--card-cut),100% 100%,0 100%);
+  box-shadow:none;
+  opacity:1;
+  transform:none;
+  pointer-events:none;
+  transition:background 260ms;
+}
+.native-app .note-card:hover,.native-app .note-card:focus-visible,.native-app .note-card.selected{
+  --card-surface:var(--card-active-surface);
+  --card-border:var(--card-active-border);
+  --card-ink:var(--card-active-ink);
+  --card-muted:var(--card-active-muted);
+  background:none;
+  border:0;
+  box-shadow:none;
+  transform:translateY(calc(var(--card-offset) - 7px)) rotate(0deg);
+  z-index:2;
+}
+.native-app .note-card:hover::before,.native-app .note-card:focus-visible::before,
+.native-app .note-card:hover::after,.native-app .note-card:focus-visible::after{opacity:1;transform:none}
+.native-app .note-card:focus-visible{outline:none}
+.native-app .note-card:focus-visible::after{inset:3px}
+.native-app .note-card:active{transform:translateY(calc(var(--card-offset) - 2px)) rotate(0deg) scale(.995);transition-duration:100ms}
+.native-app .note-card.just-saved{animation:stagger-card-arrive 400ms cubic-bezier(.2,.75,.25,1) backwards;animation-delay:0ms}
+.native-app .note-card .note-card-head{color:var(--card-muted);font-family:inherit;letter-spacing:0}
+.native-app .note-card .note-card-kind{gap:10px}
+.native-app .note-card .note-card-kind svg{width:27px;height:27px;padding:5px;border:1px solid #afc2d12e;color:var(--card-muted)}
+.native-app .note-card time{color:var(--card-muted);font:10px 'SFMono-Regular',Consolas,monospace;padding-right:10px}
+.native-app .note-card .note-card-body{gap:18px;margin:24px 0 auto}
+.native-app .note-card .note-card-text{color:var(--card-ink);font-size:16px;font-weight:500;line-height:1.7;letter-spacing:0}
+.native-app .note-card .note-card-thumbnail{flex-basis:68px;width:68px;height:68px;border-radius:0}
+.native-app .note-card .note-card-foot{margin-top:24px;padding-top:0;border-top:0;color:var(--card-muted);font-size:11px;letter-spacing:0}
+.native-app .note-card .note-card-foot>svg{color:var(--card-muted)}
+.native-app .note-card .note-card-article{background:#ffffff05;border-color:#afc2d129;border-radius:0}
+.native-app .note-card .note-card-article strong{color:var(--card-ink)}
+.native-app .note-card .note-card-article>span{color:var(--card-muted)}
+@keyframes stagger-card-arrive{
+  from{opacity:.55;transform:translateY(calc(var(--card-offset) + 12px)) rotate(var(--card-tilt))}
+  to{opacity:1;transform:translateY(var(--card-offset)) rotate(var(--card-tilt))}
+}
+html[data-window-active="false"] .native-app .note-card{animation-play-state:running!important}
+@container (max-width:620px){
+  .native-app .timeline{grid-template-columns:1fr;gap:24px;padding-inline:6px}
+  .native-app .note-card{--card-tilt:-.5deg;min-height:218px}
+  .native-app .note-card:nth-of-type(even){--card-tilt:.5deg;--card-offset:0px}
+}
+html[data-reduced="true"] .native-app .note-card{animation:none;transition:none;transform:none}
+html[data-reduced="true"] .native-app .note-card::before,html[data-reduced="true"] .native-app .note-card::after{transition:none}
+@media(prefers-reduced-motion:reduce){.native-app .note-card{animation:none;transition:none;transform:none}.native-app .note-card:hover,.native-app .note-card:focus-visible,.native-app .note-card.selected,.native-app .note-card:active{transform:none}.native-app .note-card::before,.native-app .note-card::after{transition:none}}

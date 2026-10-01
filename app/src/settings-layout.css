@@ -1,0 +1,67 @@
+/* Settings use the workspace's existing navy palette and Plasma background. */
+.settings-breadcrumb{display:flex;align-items:center;gap:10px;font-size:13px;min-width:0;color:#91a7b6;padding:0 14px}
+.settings-breadcrumb strong{color:#e1eaeb;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.settings-breadcrumb>span{flex-shrink:0}
+.settings-search{display:flex;align-items:center;gap:8px;margin-left:auto;margin-right:12px;width:224px;height:32px;padding:0 10px;border:1px solid #9ebdd229;border-radius:6px;background:#0d1a2740;color:#91a7b6;-webkit-app-region:no-drag}
+.settings-search>svg{width:15px;height:15px;flex-shrink:0}
+.settings-search input{width:100%;min-width:0;background:none;border:0;color:#e1eaeb;font:inherit;font-size:12px;outline:none}
+.settings-search input::placeholder{color:#91a7b6}
+.settings-search input::-webkit-search-cancel-button{display:none}
+.settings-search:focus-within{border-color:#bad8de8c}
+.settings-search .icon-button{padding:2px;display:grid;place-items:center}
+.settings-search .icon-button svg{width:13px;height:13px}
+.settings-navigation{overflow-y:auto;min-height:0}
+.settings-nav-heading{margin:24px 10px 7px;font-size:11px;font-weight:500;color:#7f99ac}
+.settings-nav-heading:first-child{margin-top:6px}
+.native-app .settings-navigation .nav-item{width:100%;margin:2px 0}
+.native-app.sidebar-collapsed .settings-nav-heading{height:1px;padding:0;margin:17px 5px 7px;font-size:0;background:var(--line)}
+.native-app.sidebar-collapsed .settings-nav-heading:first-child{display:none}
+.native-app .settings-scroll{padding:38px clamp(24px,5vw,80px) 64px}
+.settings-content{max-width:1040px;width:100%;margin:0 auto}
+.settings-page-heading{margin-bottom:40px}
+.native-app .settings-page-heading h1{font-size:23px;font-weight:550;letter-spacing:-.025em;line-height:1.5;margin:0 0 6px;padding:0;color:#e1eaeb}
+.native-app .settings-scroll p{font-size:12px;line-height:1.8;color:#a5bccb;margin:0;overflow-wrap:anywhere}
+.settings-group{margin-bottom:32px}
+.settings-group:last-child{margin-bottom:0}
+.settings-group-heading{margin-bottom:12px}
+.settings-group-heading h2{font-size:14px;font-weight:550;color:#d9e5ea;margin:0 0 5px;line-height:1.6}
+.settings-row-group,.settings-custom-panel{border:1px solid #a2c5d333;border-radius:11px;overflow:hidden;background:#142635d9;box-shadow:inset 0 1px #e5f4f408}
+.settings-row{display:flex;align-items:flex-start;justify-content:space-between;gap:32px;padding:20px 22px;border-bottom:1px solid #a2c5d31f}
+.settings-row:last-child{border-bottom:0}
+.settings-row-copy{min-width:0;flex:1}
+.settings-row h3{font-size:13px;font-weight:500;margin:0 0 5px;line-height:1.65;color:#e1eaeb}
+.settings-row-control{flex-shrink:0;display:flex;align-items:center;gap:12px;max-width:45%;padding-top:1px}
+.settings-row-control .text-button,.settings-group-note .text-button{display:inline-flex;align-items:center;gap:7px;font-size:12px;line-height:1.6;color:#c8dbe5;min-height:30px;padding:5px 10px;border:1px solid #a2c5d333;border-radius:5px;background:#a8cce109;text-align:left}
+.settings-row-control .text-button:hover,.settings-group-note .text-button:hover{background:#a8cce119;border-color:#bad8de66}
+.settings-row-control svg,.settings-row-extra svg,.settings-group-note svg{width:14px;height:14px;flex-shrink:0}
+.settings-row-control select{width:230px;max-width:100%;padding:8px 28px 8px 10px;background:#1c3143;border:1px solid #a2c2d140;border-radius:5px;color:#e2edf1;font:inherit;font-size:12px}
+.settings-row-control .toggle{width:40px;height:23px;padding:3px;background:#0d1c2c}
+.settings-row-control .toggle i{width:15px;height:15px}
+.settings-row-control .toggle.on{background:#52758b}
+.settings-row-control .toggle.on i{transform:translateX(15px)}
+.settings-row-extra{margin-top:9px}
+.native-app .settings-row-extra p{color:#8fa9b9;font-size:11px}
+.settings-row-extra .text-button{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:11px}
+.settings-account-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.settings-account-actions .connection-status{display:flex;align-items:center;gap:7px;font-size:12px;color:#bed2d8}
+.settings-group-note{margin:12px 2px 0}
+.native-app .settings-group-note p{font-size:11px;color:#98b1c1;margin-top:7px}
+.settings-group-note .text-button{margin-left:8px;font-size:11px;min-height:27px}
+.settings-result-category{font-size:11px;display:block;color:#8fa9b9;margin-bottom:4px}
+.settings-no-results{padding:35px 0;color:#a5bccb}
+.settings-no-results>svg{width:24px;height:24px}
+.settings-no-results h2{font-size:15px;font-weight:500;margin:15px 0 8px}
+.settings-custom-panel>section{padding:20px 22px;border:0;margin:0;max-width:none}
+.settings-custom-panel h3{font-size:13px;font-weight:500;color:#e1eaeb;margin:0 0 6px}
+.settings-custom-panel .eyebrow{display:none}
+.settings-custom-panel .processing-head,.settings-custom-panel .managed-backups-head{margin-bottom:8px}
+.settings-custom-panel .processing-head h3{margin:0}
+.settings-custom-panel .managed-backups-head p{max-width:65ch}
+.settings-custom-panel .text-button{font-size:12px}
+.settings-custom-panel .managed-backups>p{margin-top:14px}
+.settings-custom-panel .managed-backup-row span,.settings-custom-panel .managed-backup-row small{font-size:11px}
+.settings-custom-panel .processing-empty{border-top:0;padding:16px 0}
+.settings-custom-panel .processing-note{margin-top:18px}
+@media(max-width:1100px){.settings-row{gap:20px}.settings-row-control{max-width:48%}.settings-row-control select{width:185px}}
+@media(max-width:850px){.native-app .settings-scroll{padding:28px 24px 48px}.settings-row{flex-wrap:wrap;gap:12px 20px;padding:18px}.settings-row-copy{flex-basis:calc(100% - 70px)}.settings-row-control{max-width:100%}.settings-row-control:has(.toggle){margin-left:auto}.settings-custom-panel>section{padding:18px}.settings-search{width:185px}}
+@media(max-width:600px){.settings-breadcrumb{padding:0 7px;gap:6px;font-size:12px}.settings-search{width:140px;margin-right:7px;padding:0 7px}.settings-breadcrumb>span:first-child{display:none}.settings-breadcrumb>span:nth-child(2){display:none}.native-app .settings-scroll{padding:24px 16px 40px}.settings-account-actions{align-items:flex-start}.settings-page-heading{margin-bottom:28px}}

@@ -1,0 +1,115 @@
+/* Reading surfaces stay neutral as the live Plasma field changes colour. */
+.native-app{
+  --reading-surface:rgba(11,22,33,.82);
+  --reading-secondary:rgba(17,31,44,.82);
+  --reading-ink:#eff4f6;
+  --reading-muted:#bdcbd5;
+  --reading-line:#a7c4d440;
+}
+.native-app .main::after{
+  content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(180deg,#08111b30,#08111b18 40%,#08111b38);
+}
+.native-app .main>.native-scroll,.native-app .main>.memory-scroll{position:relative;z-index:1}
+/* Titles get a quiet reading band, fading out toward the visible field. */
+.native-app .native-hero{
+  background:linear-gradient(90deg,#0b1621d1 0%,#0b1621c7 68%,#0b162100);
+  padding-left:20px;padding-right:20px;
+  border-bottom-color:var(--reading-line);
+}
+.native-app .native-hero h2{color:var(--reading-ink);font-weight:550}
+.native-app .native-hero p{color:var(--reading-muted)}
+.native-app .note-compose-section h1{
+  display:table;padding:8px 12px;margin-bottom:14px;
+  background:var(--reading-surface);border-radius:4px;color:var(--reading-ink);font-weight:550;
+}
+.native-app .workspace-compose{
+  background:var(--reading-secondary);border-color:var(--reading-line);
+  box-shadow:inset 0 1px #e5f4f412,0 12px 30px #07111b24;
+}
+.native-app .workspace-compose textarea{color:var(--reading-ink)}
+.native-app .workspace-compose textarea::placeholder,.native-app .compose-context,
+.native-app .compose-shortcut,.native-app .compose-ai-notice{color:var(--reading-muted)}
+.native-app .notes-library-header{
+  background:var(--reading-surface);padding:12px 16px;border-radius:5px;
+  border-bottom-color:var(--reading-line);
+}
+.native-app .notes-library-header h2,.native-app .notes-library-header small{color:var(--reading-muted)}
+.native-app .native-search-wrap{background:#172b3e;border:1px solid var(--reading-line)}
+.native-app .native-search,.native-app .native-search::placeholder{color:var(--reading-muted)}
+.native-app .timeline .date-label{
+  justify-self:start;padding:6px 10px;border-radius:3px;
+  background:var(--reading-surface);color:var(--reading-muted);
+}
+.native-app .note-card{--card-ink:#eff4f6;--card-muted:#b7c8d4}
+/* Reports, questions and management pages need a stable surface for long text. */
+.native-app .native-report,.native-app .native-ask,.native-app .native-answer,
+.native-app .category-manager,.native-app .category-builder,
+.native-app .step-card,.native-app .trash-list,
+.native-app .ask-starters,.native-app .ask-connection{
+  background:var(--reading-surface);border:1px solid var(--reading-line);
+  border-radius:9px;padding:22px 24px;
+  box-shadow:inset 0 1px #e5f4f409;
+}
+.native-app .steps-list,.native-app .trash-list{margin-top:24px}
+.native-app .native-report-head{padding-top:0}
+.native-app .native-report-head p,.native-app .native-disclosure,
+.native-app .category-manager-head p,.native-app .builder-head p,
+.native-app .analysis-empty p,.native-app .native-empty p,
+.native-app .native-section>span,.native-app .native-section>span small,
+.native-app .native-rating,.native-app .step-index,
+.native-app .native-answer h3,.native-app .native-answer .native-limitation,
+.native-app .manager-empty,.native-app .manager-name small,
+.native-app .manager-archive>div small{color:var(--reading-muted)}
+.native-app .native-section>p,.native-app .native-answer>p,
+.native-app .step-content>p,.native-app .other-row p,
+.native-app .manager-notes p,.native-app .trash-row p{color:var(--reading-ink)}
+.native-app .eyebrow{color:var(--reading-muted)}
+.native-app .native-tabs button{background:var(--reading-surface);color:var(--reading-muted);border-color:var(--reading-line)}
+.native-app .native-tabs button.active{background:#274155;color:var(--reading-ink);border-color:#b9d0db99}
+.native-app .native-tabs small{color:#bfd1dc}
+.native-app .ask-starters,.native-app .ask-connection{max-width:850px;margin:16px auto}
+.native-app .ask-starters button,.native-app .ask-connection span{color:var(--reading-muted)}
+.native-app .native-ask textarea::placeholder{color:var(--reading-muted)}
+.native-app .native-ask>div span,.native-app .ask-disclosure p,
+.native-app .ask-disclosure strong,.native-app .native-sources,
+.native-app .native-sources button,.native-app .digest-claim-meta,
+.native-app .answer-claim>small{color:var(--reading-muted)}
+.native-app .native-empty:not(.trash-list .native-empty){
+  background:var(--reading-surface);border-radius:9px;padding-inline:20px;
+}
+.native-app .native-scroll>.analysis-empty{background:var(--reading-surface);padding:28px 24px;border-radius:9px;margin-top:24px}
+/* Settings headings and notes remain readable outside their grouped rows. */
+.native-app .settings-page-heading,.native-app .settings-group-heading,
+.native-app .settings-group-note,.native-app .settings-no-results{
+  background:var(--reading-surface);border-radius:5px;padding:12px 16px;
+}
+.native-app .settings-page-heading{padding:16px 20px;margin-bottom:28px}
+.native-app .settings-group-heading{border-left:2px solid #a7c4d450}
+.native-app .settings-row-group,.native-app .settings-custom-panel{background:var(--reading-secondary);border-color:var(--reading-line)}
+.native-app .settings-scroll p,.native-app .settings-row-extra p,
+.native-app .settings-group-note p,.native-app .settings-result-category{color:var(--reading-muted)}
+.native-app .settings-page-heading h1,.native-app .settings-group-heading h2,
+.native-app .settings-row h3{color:var(--reading-ink)}
+.native-app .settings-group-note:empty{display:none}
+/* Keep the brain field quiet while letting its page colour show at the edges. */
+.native-app .memory-scroll{background:#08131ec2}
+.native-app .memory-detail{background:#0b1822d1}
+.native-app .memory-toolbar{background:#0b1621b3;padding-inline:10px}
+.native-app .memory-heading p,.native-app .memory-heading-right,
+.native-app .memory-description,.native-app .memory-field-caption{color:#b2c5d1}
+.native-app .memory-detail-kicker,.native-app .memory-theme-list small{color:#a4bac7}
+@media(max-width:850px){
+  .native-app .native-report,.native-app .native-ask,.native-app .native-answer,
+  .native-app .category-manager,.native-app .category-builder,.native-app .step-card,
+  .native-app .trash-list,.native-app .ask-starters,.native-app .ask-connection{padding:18px}
+  .native-app .native-hero{padding-left:16px;padding-right:16px}
+  .native-app .notes-library-header{padding:10px}
+}
+
+/* Keep proposal cards separate so their surrounding field stays visible. */
+.native-app .steps-list>.analysis-empty{background:var(--reading-surface);border:1px solid var(--reading-line);border-radius:9px;padding:28px 24px}
+.native-app .step-content,.native-app .native-sources{min-width:0;max-width:100%}
+.native-app .native-sources button{max-width:100%}
+.native-app .native-sources button span{min-width:0}
+.native-app .native-sources small{color:var(--reading-muted);font-size:9px;flex-shrink:0}

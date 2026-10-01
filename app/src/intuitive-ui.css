@@ -1,0 +1,116 @@
+/* Compact headings and progressive disclosure, above the unchanged Plasma field. */
+.native-app .page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;max-width:1000px;margin:28px auto 22px;min-width:0}
+.native-app .page-heading-title{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 24px 9px 12px;background:linear-gradient(90deg,var(--reading-surface) 75%,transparent);border:0;border-radius:3px}
+.native-app .page-heading-title>svg{width:18px;height:18px;flex-shrink:0;color:#bfd1dc}
+.native-app .page-heading h1{display:block;background:none;padding:0;margin:0;font-size:18px;font-weight:550;line-height:1.5;letter-spacing:0;color:var(--reading-ink)}
+.page-heading-meta{font-size:11px;line-height:1.5;color:var(--reading-muted);white-space:nowrap;padding-left:5px;font-variant-numeric:tabular-nums}
+.page-heading-actions{display:flex;align-items:center;gap:10px;min-width:0}
+.native-app .note-compose-section{margin-top:32px;margin-bottom:28px}
+.native-app .note-compose-section .page-heading{margin:0 0 14px}
+.native-app .notes-workspace.is-empty .note-compose-section{margin-top:auto;margin-bottom:auto}
+.native-app .notes-library-header{padding:10px 14px}
+.native-app .native-tabs{margin-top:0}
+.native-app .native-tabs button{border-radius:5px;padding:8px 12px}
+.native-app .native-report-head{padding:0 0 16px}
+.native-app .native-report-head p{margin-bottom:0}
+.native-app .native-report-head h3,.native-app .category-manager-head h3,.native-app .builder-head h3{font-size:14px;font-weight:550;letter-spacing:0;margin:0}
+.native-app .category-manager-head h3 small,.native-app .native-report-head h3 small{font-size:11px;color:var(--reading-muted);font-weight:400;margin-left:6px}
+.native-app .category-manager{margin-top:0}
+.native-app .category-manager-head{padding:0 0 16px}
+.native-app .manager-other{margin-top:28px;padding-top:20px}
+.native-app .manager-actions button{min-width:32px;min-height:32px;justify-content:center;padding:7px}
+.native-app .manager-actions svg{width:15px;height:15px}
+.native-app .category-builder{margin-top:0}
+.native-app .builder-head{padding:18px 0;margin-top:14px;gap:16px}
+.native-app .builder-head .secondary{padding:8px 10px}
+.native-app .category-builder>.text-button{display:inline-flex;align-items:center;gap:7px}
+.native-app .category-builder>.text-button svg{width:14px;height:14px}
+.native-app .suggestion-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+.native-app .native-ask{margin-top:0;margin-bottom:18px}
+.native-app .native-ask>label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+.native-app .native-ask textarea{padding-top:4px;min-height:90px}
+.native-app .native-ask>.ask-submit{margin-top:14px}
+.native-app .ask-connection{display:flex;align-items:center;gap:9px;padding:12px 16px;margin-top:12px}
+.ask-connection>svg{width:15px;height:15px}
+.ask-connection>.text-button{margin-left:auto}
+.native-app .ask-starters{background:none;border:0;box-shadow:none;padding:0;margin:14px auto 24px}
+.native-app .ask-starters>.eyebrow{display:none}
+.native-app .ask-starters button{background:var(--reading-surface);border:1px solid var(--reading-line);border-radius:5px;padding:10px 12px;margin:8px 0}
+.native-app .ask-starters p{background:var(--reading-surface);display:inline-block;padding:8px 12px;border-radius:4px}
+.native-app .native-answer{margin-top:22px}
+.native-app .native-section{grid-template-columns:90px minmax(0,1fr);gap:12px;padding:22px 0}
+.native-app .native-section>span{font-family:inherit;font-size:12px;letter-spacing:0}
+.native-app .native-section>span small{font-size:10px}
+.native-app .native-section>p{font-size:14px;line-height:1.9}
+.native-app .native-section .source-disclosure{grid-column:2;min-width:0}
+.native-app .native-rating{margin-top:12px;gap:8px}
+.native-app .native-rating button{display:inline-flex;align-items:center;gap:5px;background:none;border-color:transparent;padding:6px 8px;color:var(--reading-muted);font-size:11px}
+.native-app .native-rating button:hover{background:#b6d6e414;border-color:var(--reading-line)}
+.native-app .native-rating button.on{background:#b6d6e424;border-color:#a7c4d470;color:var(--reading-ink)}
+.native-app .native-rating svg{width:13px;height:13px}
+.native-app .source-disclosure{margin-top:12px}
+.native-app .source-disclosure .native-sources{margin:0}
+.native-app .claims-disclosure{border-top:1px solid var(--reading-line);padding-top:14px;margin-top:10px}
+.native-app .digest-claims{display:grid;gap:16px}
+.native-app .next-step-pointer{padding-top:16px}
+.native-app .inline-connect{display:inline-flex;align-items:center;gap:7px;color:#d4e5ec;border:1px solid var(--reading-line);padding:8px 10px;border-radius:4px;font-size:12px;margin:0 0 12px}
+.inline-connect svg{width:14px;height:14px}
+/* Native details remain keyboard accessible and never rely on hover. */
+.native-app .ui-details{font-size:11px;color:var(--reading-muted);min-width:0;text-align:left}
+.native-app .ui-details>summary{display:flex;align-items:center;gap:6px;width:fit-content;max-width:100%;min-height:30px;list-style:none;cursor:pointer;border-radius:4px;padding:4px 6px;margin-left:-6px;line-height:1.6;transition:background 140ms ease,color 140ms ease}
+.native-app .ui-details>summary::-webkit-details-marker{display:none}
+.native-app .ui-details>summary:hover{color:var(--reading-ink);background:#b6d6e412}
+.native-app .ui-details>summary:focus-visible{outline:2px solid #bad8de;outline-offset:2px}
+.native-app .ui-details>summary>svg{width:13px;height:13px;flex-shrink:0}
+.native-app .ui-details>summary>.details-chevron{width:11px;height:11px;transition:transform 160ms ease}
+.native-app .ui-details[open]>summary>.details-chevron{transform:rotate(180deg)}
+.native-app .ui-details-content{padding:10px 0 12px;line-height:1.8;color:var(--reading-muted);overflow-wrap:anywhere}
+.native-app .ui-details-content>p{font-size:11px;line-height:1.8;margin:0 0 8px;color:var(--reading-muted)}
+.native-app .ui-details-content>p:last-child{margin-bottom:0}
+.native-app .page-heading-actions>.ui-details{padding:0 10px;background:var(--reading-surface);border-radius:5px}
+.native-app .page-heading-actions>.ui-details[open]{max-width:330px}
+/* Settings show controls first; implementation details are optional. */
+.native-app .settings-scroll{padding-top:0}
+.native-app .settings-group{margin-bottom:24px}
+.native-app .settings-group-heading{background:none;border:0;padding:0 2px;margin-bottom:10px}
+.native-app .settings-group-heading h2{font-size:12px;margin:0;font-weight:500;color:var(--reading-muted);display:table;background:var(--reading-surface);padding:5px 9px;border-radius:3px}
+.native-app .settings-group-heading p{margin-top:6px;display:inline-block;background:var(--reading-surface);padding:6px 10px;border-radius:3px}
+.native-app .settings-row{align-items:center;padding:16px 18px;gap:20px}
+.settings-row-label{display:flex;align-items:center;gap:9px}
+.settings-row-label>svg{width:16px;height:16px;flex-shrink:0;color:#adc2ce}
+.native-app .settings-row-label h3{margin:0;line-height:1.7}
+.native-app .settings-row-copy>p{margin:5px 0 0;font-size:11px}
+.native-app .settings-row-copy:has(.settings-row-label>svg)>p,.native-app .settings-row-copy:has(.settings-row-label>svg)>.ui-details{margin-left:25px}
+.native-app .settings-row-extra{margin-top:6px}
+.native-app .settings-row-extra:empty{display:none}
+.native-app .settings-group-note{padding:0 2px;background:none}
+.native-app .settings-group-note:has(p){padding:10px 14px;background:var(--reading-surface)}
+.native-app .settings-group-note .text-button{margin-left:0}
+.native-app .settings-account-actions{flex-direction:row;align-items:center}
+.settings-job-status{display:flex;align-items:center;gap:10px;font-size:11px}
+.native-app .settings-job-status .text-button{margin:0}
+.native-app .processing-head{justify-content:space-between}
+.native-app .processing-head .text-button{margin-left:auto}
+.native-app .note-ai-policy{padding:12px 0;margin:18px 0}
+.native-app .note-ai-policy>.ui-details{margin-top:5px}
+.native-app .note-ai-policy .ui-details-content small{font-size:10px}
+.native-app .native-empty h3,.native-app .analysis-empty h3{font-size:15px;font-weight:500;letter-spacing:0}
+/* Map labels describe the selected mode; the guide is available beside the timeline. */
+.native-app .memory-page>.page-heading{width:100%;max-width:none;margin:0 0 18px;flex-shrink:0}
+.native-app .memory-toolbar button{display:inline-flex;align-items:center;gap:6px}
+.native-app .memory-toolbar svg{width:13px;height:13px;flex-shrink:0}
+.native-app .memory-toolbar label{color:var(--reading-muted)}
+.native-app .memory-back{display:inline-flex;align-items:center;gap:5px}
+.native-app .memory-back svg{width:12px;height:12px}
+.native-app .memory-detail h3{font-size:16px;letter-spacing:0}
+.native-app .memory-field-caption{display:flex;align-items:center;gap:7px;min-height:24px}
+.memory-line-key{width:14px;border-top:1px dashed #8ebbc8}
+.native-app .memory-detail-footer{padding-bottom:12px}
+.native-app .memory-detail-footer>.ui-details{font-size:10px;margin-top:5px}
+.native-app .memory-timeline>.ui-details{margin-top:5px}
+.native-app .memory-connect{gap:6px}
+.native-app .memory-connect svg{width:13px;height:13px}
+@media(max-width:1000px){.native-app .native-section{grid-template-columns:1fr}.native-app .native-section .source-disclosure{grid-column:1}}
+@media(max-width:850px){.native-app .page-heading{margin-top:22px}.native-app .page-heading h1{font-size:17px}.native-app .settings-row{gap:12px}.native-app .settings-account-actions{flex-wrap:wrap}.native-app .page-heading-actions>.ui-details[open]{max-width:220px}}
+@media(max-width:650px){.native-app .page-heading{flex-wrap:wrap;gap:10px}.native-app .page-heading-actions{margin-left:auto}.native-app .suggestion-list{grid-template-columns:1fr}.native-app .manager-actions{padding-left:0;flex-wrap:wrap}.native-app .native-rating .native-correction{min-width:0;width:100%}.native-app .page-heading-meta{font-size:10px}}
+html[data-reduced=true] .details-chevron{transition:none}

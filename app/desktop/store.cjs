@@ -281,11 +281,11 @@ class Store {
       this.db.prepare('UPDATE notes SET current_revision_id=? WHERE id=?').run(revisionId,id);
       for(const image of images)this.db.prepare('INSERT INTO attachments(id,note_id,media_type,file_name,content_hash,bytes,created_at) VALUES(?,?,?,?,?,?,?)').run(randomUUID(),id,image.mediaType,image.fileName,createHash('sha256').update(image.bytes).digest('hex'),image.bytes,now);
       if (current) this.db.prepare('UPDATE assignments SET revision_id=? WHERE note_id=? AND origin=\'human\'').run(revisionId,id);
-      if (current) this.db.prepare(`UPDATE outputs SET status='stale' WHERE id IN (
-        SELECT e.output_id FROM evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
-        UNION SELECT o.id FROM outputs o JOIN analysis_inputs ai ON ai.run_id=o.run_id
-        JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
-      )`).run(id,id);
+      if (current) this.db.prepare(`WITH RECURSIVE impacted(id) AS (
+        SELECT ai.run_id FROM analysis_inputs ai JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
+        UNION SELECT o.run_id FROM evidence e JOIN outputs o ON o.id=e.output_id JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
+        UNION SELECT rc.run_id FROM run_contexts rc JOIN impacted i ON rc.source_run_id=i.id
+      ) UPDATE outputs SET status='stale' WHERE run_id IN (SELECT id FROM impacted)`).run(id,id);
       this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
       if(current)this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
       const saved=this.db.prepare('SELECT created_at,origin_kind,is_demo,ai_excluded,ai_access_version FROM notes WHERE id=?').get(id);
@@ -305,11 +305,11 @@ class Store {
     return this.tx(() => {
       const changed=this.db.prepare('UPDATE notes SET deleted_at=? WHERE id=? AND deleted_at IS NULL').run(new Date().toISOString(),id);
       if(!changed.changes)throw new Error('Active note not found.');
-      this.db.prepare(`UPDATE outputs SET status='stale' WHERE id IN (
-        SELECT e.output_id FROM evidence e JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
-        UNION SELECT o.id FROM outputs o JOIN analysis_inputs ai ON ai.run_id=o.run_id
-        JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
-      )`).run(id,id);
+      this.db.prepare(`WITH RECURSIVE impacted(id) AS (
+        SELECT ai.run_id FROM analysis_inputs ai JOIN note_revisions r ON r.id=ai.revision_id WHERE r.note_id=?
+        UNION SELECT o.run_id FROM evidence e JOIN outputs o ON o.id=e.output_id JOIN note_revisions r ON r.id=e.revision_id WHERE r.note_id=?
+        UNION SELECT rc.run_id FROM run_contexts rc JOIN impacted i ON rc.source_run_id=i.id
+      ) UPDATE outputs SET status='stale' WHERE run_id IN (SELECT id FROM impacted)`).run(id,id);
       this.db.prepare('DELETE FROM classification_jobs WHERE note_id=?').run(id);
       this.db.prepare('DELETE FROM note_embeddings WHERE revision_id IN (SELECT id FROM note_revisions WHERE note_id=?)').run(id);
     });
@@ -389,6 +389,62 @@ class Store {
   purgedNoteIds(){return this.db.prepare('SELECT id FROM purged_notes').all().map(row=>row.id);}
   categories() { const rows=this.db.prepare("SELECT id,name FROM categories WHERE state='active' ORDER BY CASE WHEN id='all' THEN 0 ELSE 1 END,name").all();return [rows[0],{id:'other',name:'Other'},...rows.slice(1)]; }
   categoryOverview(){return this.categories().map(c=>({...c,count:this.notesFor(c.id).length}));}
+  memoryContextCurrent(runId){
+    return !this.db.prepare(`WITH RECURSIVE context(id) AS (
+      SELECT ? UNION SELECT rc.source_run_id FROM run_contexts rc JOIN context c ON rc.run_id=c.id
+    ) SELECT 1 FROM context c JOIN runs run ON run.id=c.id
+      LEFT JOIN analysis_inputs ai ON ai.run_id=c.id
+      LEFT JOIN note_revisions r ON r.id=ai.revision_id LEFT JOIN notes n ON n.id=r.note_id
+      WHERE run.ai_blocked=1 OR (ai.revision_id IS NOT NULL AND (
+        n.id IS NULL OR n.deleted_at IS NOT NULL OR n.current_revision_id!=ai.revision_id
+        OR n.ai_excluded=1 OR n.origin_kind!='human' OR n.is_demo=1)) LIMIT 1`).get(runId);
+  }
+  memoryMapData(){
+    const {localThemes}=require('./memory-map.cjs');
+    const notes=this.listNotes().filter(n=>n.originKind==='human'&&!n.isDemo);
+    const revisions=new Set(notes.filter(n=>!n.aiExcluded).map(n=>n.revisionId));
+    const rows=this.db.prepare("SELECT o.* FROM outputs o JOIN runs r ON r.id=o.run_id WHERE o.kind='memory-theme' AND o.status='current' AND r.ai_blocked=0 ORDER BY o.rowid").all();
+    const themes=rows.filter(row=>this.memoryContextCurrent(row.run_id)).map(row=>{
+      const body=JSON.parse(row.text),rating=this.inflateOutput(row).rating;
+      return {...body,id:row.id,origin:'ai',state:rating?.rating==='good'?'confirmed':rating?.rating==='bad'?(rating.reason==='memory-hide'?'hidden':'corrected'):'unreviewed',correction:rating?.rating==='bad'?rating.comment:'',date:row.created_at};
+    }).filter(t=>t.evidence.every(e=>revisions.has(e.revisionId)));
+    const latest=this.db.prepare("SELECT r.created_at,(SELECT count(*) FROM analysis_inputs WHERE run_id=r.id) AS sampleCount FROM runs r WHERE r.purpose='memory' AND r.ai_blocked=0 ORDER BY r.rowid DESC LIMIT 1").get();
+    return {notes,total:notes.length,themes:themes.filter(t=>t.state!=='hidden'),hiddenThemes:themes.filter(t=>t.state==='hidden'),localThemes:localThemes(notes),analysisAt:latest?.created_at||null,sampleCount:latest?.sampleCount||0,eligibleCount:notes.filter(n=>!n.aiExcluded&&n.text.trim()).length};
+  }
+  saveMemoryThemes({items,result,model,contextRunIds=[]}){
+    const {validateThemes}=require('./memory-map.cjs');
+    const themes=validateThemes(result,items);
+    this.assertAiSnapshot(items,contextRunIds);
+    this.tx(()=>{
+      const runId=randomUUID(),now=new Date().toISOString();
+      this.db.prepare("UPDATE outputs SET status='superseded' WHERE kind='memory-theme' AND status='current'").run();
+      this.db.prepare("INSERT INTO runs(id,purpose,category_id,model,prompt_version,created_at,context_tracked) VALUES(?,'memory','all',?,'memory-1',?,1)").run(runId,model,now);
+      for(const source of new Set(contextRunIds))this.db.prepare('INSERT INTO run_contexts(run_id,source_run_id) VALUES(?,?)').run(runId,source);
+      for(const item of items)this.db.prepare('INSERT INTO analysis_inputs(run_id,revision_id) VALUES(?,?)').run(runId,item.revisionId);
+      for(const theme of themes){
+        const id=randomUUID();
+        this.db.prepare("INSERT INTO outputs(id,run_id,kind,text,category_id,created_at) VALUES(?,?,'memory-theme',?,'all',?)").run(id,runId,JSON.stringify(theme),now);
+        for(const e of theme.evidence)this.db.prepare('INSERT INTO evidence(output_id,revision_id) VALUES(?,?)').run(id,e.revisionId);
+      }
+    });return this.memoryMapData();
+  }
+  reviewMemoryTheme({id,decision,comment=''}){
+    const theme=this.memoryMapData().themes.concat(this.memoryMapData().hiddenThemes).find(t=>t.id===id&&t.origin==='ai');
+    if(!theme)throw Error('原文が変わりました。地図を更新してください。');
+    if(!['confirm','correct','hide','reset'].includes(decision))throw Error('確認の形式が不正です。');
+    if(decision==='correct'&&(!String(comment).trim()||String(comment).length>500))throw Error('訂正を1〜500文字で入力してください。');
+    this.rate(id,decision==='confirm'?'good':decision==='reset'?'clear':'bad',`memory-${decision}`,decision==='correct'?String(comment).trim():'');
+    return this.memoryMapData();
+  }
+  memoryFeedbackFor(question=''){
+    const rows=this.db.prepare("SELECT o.*,f.rating,f.reason,f.comment FROM outputs o JOIN runs r ON r.id=o.run_id JOIN feedback f ON f.output_id=o.id WHERE o.kind='memory-theme' AND o.status!='stale' AND r.ai_blocked=0 AND f.id=(SELECT id FROM feedback WHERE output_id=o.id ORDER BY created_at DESC,rowid DESC LIMIT 1) ORDER BY f.created_at DESC,f.rowid DESC LIMIT 60").all();
+    const current=new Set(this.searchableNotes().map(n=>n.revisionId));
+    const seen=new Set();
+    const latest=rows.filter(r=>this.memoryContextCurrent(r.run_id)&&JSON.parse(r.text).evidence.every(e=>current.has(e.revisionId))).map(r=>({theme:JSON.parse(r.text).label,description:JSON.parse(r.text).description,rating:r.rating,reason:r.reason,comment:r.comment,_runId:r.run_id})).filter(r=>{if(seen.has(r.theme))return false;seen.add(r.theme);return r.rating!=='clear'});
+    const grams=text=>{const cleaned=String(text).toLocaleLowerCase().replace(/[\s\p{P}\p{S}]/gu,'');return new Set(Array.from({length:Math.max(0,cleaned.length-1)},(_,i)=>cleaned.slice(i,i+2)))};
+    const wanted=grams(question);
+    return latest.filter(r=>!question||[r.theme,r.comment].some(text=>{const other=grams(text);const shared=[...other].filter(g=>wanted.has(g)).length;return shared>0&&shared/Math.max(1,Math.min(other.size,wanted.size))>=.3})).slice(0,8);
+  }
   graphData(limit=160){
     const size=Math.max(1,Math.min(300,Number(limit)||160));
     const total=this.db.prepare("SELECT count(*) AS count FROM notes WHERE deleted_at IS NULL AND origin_kind='human' AND is_demo=0").get().count;
@@ -757,7 +813,7 @@ class Store {
     return items.every(item=>{
       const note=this.db.prepare("SELECT current_revision_id AS revisionId,ai_access_version AS accessVersion FROM notes WHERE id=? AND deleted_at IS NULL AND origin_kind='human' AND is_demo=0 AND ai_excluded=0").get(item.id||item.noteId);
       return !!note&&note.revisionId===item.revisionId&&note.accessVersion===(item.aiAccessVersion??0);
-    })&&contextRunIds.every(id=>!!this.db.prepare('SELECT 1 FROM runs WHERE id=? AND ai_blocked=0').get(id));
+    })&&contextRunIds.every(id=>{const run=this.db.prepare('SELECT purpose FROM runs WHERE id=? AND ai_blocked=0').get(id);return !!run&&(run.purpose!=='memory'||this.memoryContextCurrent(id))});
   }
   assertAiSnapshot(items,contextRunIds=[]){
     if(!this.aiSnapshotCurrent(items,contextRunIds))throw new Error('Notes or AI access changed during analysis. Run it again.');

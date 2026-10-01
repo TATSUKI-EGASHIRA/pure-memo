@@ -9,6 +9,7 @@ const {DigestWorker}=require('./digest-worker.cjs');
 const {ArticleWorker}=require('./article-worker.cjs');
 const {listManagedBackups,deleteManagedBackup}=require('./backup-audit.cjs');
 const {retrieve}=require('./retrieval.cjs');
+const {selectMemoryNotes,memorySchema,memoryPrompt}=require('./memory-map.cjs');
 const {promptFor,validateResult}=require('./analysis.cjs');
 let win,store,analysisAi,classifier,digestWorker,articleWorker;
 const ai=new CodexClient();
@@ -48,6 +49,16 @@ function wire(){
   api('pure:draft',arg=>store.saveDraftSnapshot(arg));
   api('pure:category-notes',arg=>store.notesFor(arg));
   api('pure:graph',()=>store.graphData());
+  api('pure:memory-map',()=>store.memoryMapData());
+  api('pure:review-memory-theme',arg=>store.reviewMemoryTheme(arg));
+  api('pure:analyze-memory',async({model})=>{
+    if(typeof model!=='string'||!model)throw Error('設定でCodexに接続し、モデルを選んでください。');
+    const items=selectMemoryNotes(store.searchableNotes());
+    if(items.length<2)throw Error('AI解析の対象となる文章メモが2件以上必要です。');
+    const feedback=store.memoryFeedbackFor();
+    const result=await analysisAi.generate({items,feedback,model,prompt:memoryPrompt(items,feedback),schema:memorySchema});
+    return store.saveMemoryThemes({items,result,model,contextRunIds:feedback.map(f=>f._runId)});
+  });
   api('pure:rename-category',arg=>{const result=store.renameCategory(arg.id,arg.name);digestWorker.schedule();return result;});
   api('pure:create-category',arg=>{const result=store.createCategory(arg.name,arg.noteIds);digestWorker.schedule();return result;});
   api('pure:assign-note',arg=>{const result=store.assignNote(arg.noteId,arg.categoryId);digestWorker.schedule();return result;});
@@ -103,7 +114,7 @@ function wire(){
     const ranked=await retrieve(store,text,{useDigest:store.askDigestEnabled()});
     const notes=ranked.map(({score,method,categoryNames,...note})=>note);
     if(!notes.length)throw new Error('AI解析の対象にできる文章メモがありません。メモを追加するか、対象外設定を見直してください。');
-    const feedback=store.feedbackForAsk(text);
+    const feedback=[...store.feedbackForAsk(text),...store.memoryFeedbackFor(text)];
     const result=validateResult(await analysisAi.generate({items:notes,feedback,model,prompt:promptFor('ask',notes,feedback,text),schema:askSchema}),notes,'ask');
     return store.saveAnalysis({purpose:'ask',categoryId:'all',model,items:notes,result,question:text,contextRunIds:feedback.map(item=>item._runId),retrieval:ranked.map(item=>({revisionId:item.revisionId,score:item.score,method:item.method}))});
   });
@@ -133,7 +144,7 @@ function wire(){
   });
 }
 function createWindow(){
-  win=new BrowserWindow({width:1320,height:850,minWidth:850,minHeight:620,title:'pure.',backgroundColor:'#101c2a',titleBarStyle:'hiddenInset',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  win=new BrowserWindow({width:1320,height:850,minWidth:850,minHeight:620,title:'pure.',backgroundColor:'#101c2a',titleBarStyle:'hiddenInset',trafficLightPosition:{x:16,y:16},webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(dev?`${process.env.PURE_DEV_URL}/`:'file://'))event.preventDefault()});
   if(dev)win.loadURL(`${process.env.PURE_DEV_URL}/desktop.html`);else win.loadFile(path.join(__dirname,'../dist/desktop.html'));

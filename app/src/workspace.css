@@ -1,0 +1,106 @@
+/* Workspace arrangement. Existing styles own the app's palette and surfaces. */
+.native-app{--workspace-sidebar:232px;flex-direction:column;min-height:0}
+.native-app.sidebar-collapsed{--workspace-sidebar:52px}
+.workspace-titlebar{height:46px;flex-shrink:0;display:flex;align-items:center;border-bottom:1px solid var(--line);background:linear-gradient(115deg,#152431,#101c28);-webkit-app-region:drag;user-select:none}
+.workspace-titlebar button{-webkit-app-region:no-drag}
+.titlebar-sidebar{width:var(--workspace-sidebar);min-width:122px;flex-shrink:0;display:flex;justify-content:flex-end;padding-right:10px}
+.native-app .icon-button svg{width:17px;height:17px}
+.titlebar-actions{display:flex;gap:5px;margin-left:auto;padding-right:12px}
+.workspace-body{display:flex;flex:1;min-height:0;position:relative;overflow:hidden}
+.native-app .sidebar{width:var(--workspace-sidebar);padding:12px 10px 8px;align-items:stretch;overflow:hidden}
+.sidebar-search{display:flex;align-items:center;gap:10px;width:100%;height:35px;padding:0 9px;border:1px solid #9ebdd229;border-radius:6px;background:#0d1a2740;color:#91a7b6;text-align:left;font-size:13px;margin-bottom:10px}
+.sidebar-search:hover{background:#334b613b}
+.sidebar-search svg{width:16px;height:16px}
+.sidebar-search kbd{margin-left:auto;color:#708da2;font-size:11px}
+.native-app .nav-item{height:36px;padding:0 10px;gap:11px;font-size:13px;margin:2px 0;text-align:left}
+.native-app .nav-item svg{width:17px;height:17px}
+.native-app .nav-item span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sidebar-categories{margin-top:26px;min-height:0;overflow:auto}
+.sidebar-section-heading{display:flex;align-items:center;justify-content:space-between;padding-left:10px;margin-bottom:5px;color:#7f99ac;font-size:12px}
+.sidebar-section-heading>button:first-child{padding:5px 0;text-align:left}
+.sidebar-section-heading .icon-button{padding:5px}
+.sidebar-section-heading .icon-button svg{width:14px;height:14px}
+.sidebar-category-list{margin-top:4px}
+.category-dot{width:5px;height:5px;flex-shrink:0;background:#9fbac1;border-radius:50%;margin:0 6px}
+.sidebar-category-list small{margin-left:auto;color:#7f9aab;font-size:11px;font-variant-numeric:tabular-nums}
+.native-app .sidebar-foot{margin-top:auto;padding-top:18px}
+.native-app.sidebar-collapsed .sidebar{padding:12px 6px 8px;align-items:stretch}
+.native-app.sidebar-collapsed .sidebar-search{justify-content:center;padding:0;border-color:transparent;background:none}
+.native-app.sidebar-collapsed .sidebar-search span,.native-app.sidebar-collapsed .sidebar-search kbd,.native-app.sidebar-collapsed .nav-item span,.native-app.sidebar-collapsed .sidebar-section-heading,.native-app.sidebar-collapsed .sidebar-category-list{display:none}
+.native-app.sidebar-collapsed .nav-item{justify-content:center;padding:0;min-height:36px}
+.native-app.sidebar-collapsed .sidebar-categories{margin-top:12px}
+.workspace-statusbar{height:25px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 13px;border-top:1px solid var(--line);background:#0d1720;color:#768ea3;font-size:10px;user-select:none}
+.workspace-statusbar>span:last-child{display:flex;align-items:center;gap:7px}
+.workspace-statusbar i{height:4px;width:4px;background:#9fbac1;border-radius:50%}
+.native-app .main{min-height:0}
+.native-app .native-scroll{padding:0 clamp(24px,4vw,64px) 48px;scrollbar-gutter:stable}
+.native-app .native-hero,.native-app .graph-intro{max-width:1000px;min-height:0;align-items:flex-start;padding:38px 0 26px;border-bottom:1px solid var(--line)}
+.native-app .native-hero>div:first-child{padding:0}
+.native-app .native-hero h2,.native-app .graph-intro h2,.native-app .native-settings>h2{font-size:22px;font-weight:450;letter-spacing:-.035em;line-height:1.5;margin:0 0 9px}
+.native-app .native-hero p,.native-app .graph-intro p{font-size:12px;line-height:1.8;letter-spacing:0;margin:0}
+.native-app .native-report,.native-app .category-manager,.native-app .category-builder,.native-app .steps-list,.native-app .trash-list{max-width:1000px}
+.native-app .notes-workspace{position:relative;isolation:isolate;display:flex;flex-direction:column;padding-top:0}
+.workspace-pattern{position:absolute;top:0;left:0;right:0;height:240px;z-index:-1;pointer-events:none;opacity:.65;mask-image:linear-gradient(#000,transparent)}
+.note-compose-section{width:100%;max-width:850px;margin:62px auto 34px}
+.native-app .note-compose-section h1{font-size:18px;font-weight:450;letter-spacing:-.025em;padding-left:12px;margin-bottom:19px}
+.workspace-compose{border:1px solid #a2c5d333;background:linear-gradient(148deg,#253c4a9c,#182a39c7 42%,#132331e0);border-radius:9px;padding:15px 15px 10px;box-shadow:inset 0 1px #e5f4f412,0 12px 30px #07111b24;transition:border-color 160ms ease}
+.workspace-compose:focus-within{border-color:#bad8de8c}
+.compose-context{display:flex;align-items:center;gap:7px;color:#8da8b9;font-size:11px;padding:0 1px}
+.compose-context svg{width:14px;height:14px}
+.compose-context-divider{height:10px;border-left:1px solid #99bdd426;margin:0 4px}
+.workspace-compose textarea{display:block;resize:vertical;width:100%;min-height:72px;max-height:240px;background:none;border:0;color:#e1eaeb;padding:20px 1px 12px;font-size:14px;line-height:1.75;outline:0;caret-color:#dceaf4}
+.workspace-compose textarea::placeholder{color:#8ea6ba}
+.native-app .workspace-compose textarea:focus-visible{outline:0}
+.compose-toolbar{display:flex;align-items:center;gap:10px;padding-top:3px}
+.native-app .compose-toolbar .icon-button{width:28px;height:28px;background:#a8cce119}
+.compose-shortcut{color:#7e98af;font-size:10px}
+.compose-save{display:grid;place-items:center;height:29px;width:29px;background:#e9e8e3;color:#233447;border:1px solid #ffffff60;border-radius:6px;margin-left:auto;box-shadow:0 3px 12px #0001}
+.compose-save svg{width:16px;height:16px;transform:rotate(-90deg)}
+.compose-save:disabled{background:#39536c70;border-color:#a9c7df17;color:#91a8bd;opacity:1}
+.compose-save:hover:not(:disabled){background:#fff;color:#142535}
+.compose-ai-notice{display:flex;align-items:center;flex-wrap:wrap;gap:7px;border-top:1px solid var(--line);padding-top:10px;margin-top:11px;font-size:10px;line-height:1.7;color:#a9c0c8}
+.compose-ai-notice svg{width:12px;height:12px}
+.compose-ai-notice button{color:#d8e8e9;margin-left:auto;text-decoration:underline;text-underline-offset:3px}
+.notes-library{width:100%;max-width:1000px;margin:0 auto}
+.notes-library-header{display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding:8px 0 16px}
+.notes-library-header>div{display:flex;align-items:center;gap:10px}
+.notes-library-header h2{font-size:14px;font-weight:500;margin:0;color:#bdcdd6}
+.notes-library-header small{font-size:11px;color:#7f9bad}
+.native-app .native-search-wrap{padding:7px 10px;border-radius:5px}
+.native-app .native-search{width:150px;font-size:11px}
+.native-app .native-search-wrap kbd{font-size:10px;color:#708da2}
+.native-app .notes-workspace.is-empty .note-compose-section{margin-top:auto;margin-bottom:auto;padding-top:50px;padding-bottom:50px}
+.native-app .notes-workspace.is-empty .notes-library{position:absolute;right:24px;top:16px;width:auto}
+.native-app .notes-workspace.is-empty .notes-library-header{border:0;padding:0}
+.native-app .notes-workspace.is-empty .notes-library-header>div,.native-app .notes-workspace.is-empty .native-empty{display:none}
+.native-app .timeline{max-width:1000px;gap:12px}
+.native-app .timeline .date-label{font-family:inherit;font-size:11px;letter-spacing:0;margin-top:24px}
+.native-app .note-card{min-height:170px;padding:16px 18px;animation:none}
+.native-app .note-card-body{margin-top:19px}
+.native-app .note-card-text{font-size:13px}
+.native-app .note-card-foot{margin-top:18px;font-size:10px}
+.native-app .eyebrow{letter-spacing:.025em;font-size:10px}
+.native-app .primary{padding:9px 13px;font-size:12px}
+.native-app .analysis-empty h3,.native-app .native-empty h3{font-size:16px;font-weight:450}
+.native-app .native-ask{max-width:850px;border-radius:9px;margin:32px auto}
+.native-app .native-ask textarea{font-size:15px}
+.native-app .native-settings{padding-top:38px}
+.native-app .native-settings>h2{margin-bottom:24px}
+.native-app .native-settings section{max-width:850px}
+.native-app .native-settings h3{font-size:14px;font-weight:450}
+.native-app .inspector{position:relative;top:auto;bottom:auto;width:335px;max-width:40vw}
+.native-app .inspector>header{height:48px;padding:0 22px}
+.native-app .inspector .original{font-size:16px}
+.compose-excluded{display:flex;align-items:center;gap:6px;color:#b4cbd4;font-size:10px;margin:0 0 12px}
+.compose-excluded svg{width:12px;height:12px}
+.workspace-compose .capture-images{padding:0 0 12px}
+/* Explicit expansion takes precedence over the old automatic narrow sidebar. */
+.native-app:not(.sidebar-collapsed) .sidebar .nav-item{justify-content:flex-start}
+.native-app:not(.sidebar-collapsed) .sidebar .nav-item span{display:block}
+.native-app .category-manager-head h3,.native-app .builder-head h3{font-size:18px;font-weight:450;letter-spacing:-.02em}
+/* Do not hide newly opened pages when macOS pauses background-window animation. */
+.native-app .native-scroll,.native-app .native-report,.native-app .step-card,.native-app .native-answer,.native-app .native-section,.native-app .next-step-pointer,.native-app .inspector{animation:none}
+@media(max-width:1000px){.native-app .inspector{position:absolute;top:0;bottom:0;right:0;width:335px;max-width:calc(100vw - var(--workspace-sidebar));z-index:4;box-shadow:-20px 0 50px #0006}.native-app .native-section{grid-template-columns:1fr}}
+@media(max-width:700px){.native-app{--workspace-sidebar:180px}.titlebar-sidebar{padding-right:7px}.native-app .native-scroll{padding-left:20px;padding-right:20px}.notes-library-header{align-items:flex-start;flex-wrap:wrap}.native-app .timeline,.native-app .steps-list{grid-template-columns:1fr}.compose-ai-notice button{margin-left:19px}.compose-context{font-size:10px}.native-app .native-search{width:110px}.native-app .native-hero h2,.native-app .graph-intro h2{font-size:20px}}
+@media(max-width:480px){.native-app:not(.sidebar-collapsed){--workspace-sidebar:152px}.native-app .sidebar{padding-inline:6px}.native-app .nav-item{font-size:12px}.native-app .native-scroll{padding-inline:14px}.compose-shortcut{display:none}.titlebar-actions{padding-right:5px;gap:0}.note-compose-section{margin-top:35px}.workspace-compose{padding:12px 10px 9px}}
+@media(prefers-reduced-motion:reduce){.workspace-compose{transition:none}}
