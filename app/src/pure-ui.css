@@ -1,0 +1,738 @@
+/* pure. workspace: the orbit language for every page. Letters, drops and hairlines sit on the
+   Plasma field; anything meant to be read sits on a slab. Tokens live in fonts.css. */
+.native-app{
+  --reading-surface:var(--slab);--reading-secondary:var(--slab);--reading-ink:var(--ink);--reading-muted:var(--ink-muted);--reading-line:var(--rule-faint);
+  --line:var(--rule-faint);--muted:var(--ink-muted);--panel:var(--slab);
+  --column:880px;--left-column:248px;
+  position:relative;isolation:isolate;background:#02030c;color:var(--ink);font-family:var(--font-text);font-weight:400;-webkit-font-smoothing:antialiased;
+}
+.native-app :is(h1,h2,h3,h4,h5,h6,strong,b,th){font-weight:600}
+.native-app :is(time,kbd,code){font-family:var(--font-mono);font-weight:400}
+.native-app button,.native-app input,.native-app textarea,.native-app select{font-family:inherit}
+.native-app :focus-visible{outline:2px solid #fff;outline-offset:2px}
+.native-app>.plasma-background{position:fixed;inset:0;z-index:0;transform-origin:center}
+.native-app[data-page="Graph"]>.plasma-background{transform:scaleX(-1)}
+.native-app .main::after{display:none}
+.native-app .workspace-body{position:relative;z-index:1;height:100dvh;background:none}
+.native-app .main{background:none}
+.native-app .main>.native-scroll,.native-app .main>.memory-scroll{position:relative;z-index:1}
+
+/* Shared parts */
+.ui-mono,.native-app .eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em;color:var(--ink-muted)}
+.ui-slab{border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.ui-pill{border-radius:999px;background:var(--pill)}
+.ui-drop{flex:none;display:inline-block;width:var(--drop,8px);height:var(--drop,8px);border-radius:50%;background:#fff;box-shadow:var(--drop-shadow)}
+.ui-ripple{position:absolute;inset:0;pointer-events:none}
+.ui-ripple i{position:absolute;inset:0;border:1px solid #fff;border-radius:50%;opacity:0;animation:ui-ripple 3.4s cubic-bezier(.2,.6,.3,1) infinite}
+.ui-ripple i+i{animation-delay:1.7s}
+.ui-ripple.is-slow i{animation-duration:6.8s}.ui-ripple.is-slow i+i{animation-delay:3.4s}
+@keyframes ui-ripple{from{opacity:.9;transform:scale(.5)}to{opacity:0;transform:scale(1.7)}}
+.ui-disc{position:relative;width:var(--disc);height:var(--disc);border-radius:50%;background:var(--disc-fill);box-shadow:var(--disc-shadow)}
+.ui-dial{position:absolute;pointer-events:none;overflow:visible}
+.ui-dial circle{fill:none;stroke:#fff}
+.ui-dial-turn{transform-box:view-box;transform-origin:50% 50%;animation:ui-turn 240s linear infinite}
+@keyframes ui-turn{to{transform:rotate(360deg)}}
+.ui-logo{display:inline-flex;align-items:center;gap:8px;color:var(--ink)}
+.ui-logo svg{width:34px;height:23px}
+.ui-logo>span{font-family:var(--font-text);font-size:21px;font-weight:600;letter-spacing:.24em}
+.ui-switch-wrap{display:inline-flex;align-items:center;gap:10px}
+.ui-switch-state{min-width:2em;font-family:var(--font-mono);font-size:12px;color:var(--ink-muted);text-align:right}
+.native-app .ui-switch{position:relative;width:52px;height:30px;padding:0;border:1px solid var(--rule);border-radius:999px;background:rgba(243,244,250,.1);transition:background .2s}
+.native-app .ui-switch::after{content:'';position:absolute;inset:-8px -2px}
+.native-app .ui-switch i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:rgba(243,244,250,.72);transition:transform .2s,background .2s}
+.native-app .ui-switch.is-on{background:var(--ink);border-color:var(--ink)}
+.native-app .ui-switch.is-on i{transform:translateX(22px);background:var(--ink-on-grey)}
+.native-app .ui-switch:disabled{opacity:.5}
+/* Buttons */
+.native-app .primary{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 22px;border:0;border-radius:999px;background:var(--ink);color:var(--ink-on-grey);font-family:var(--font-text);font-size:14px;font-weight:600;letter-spacing:.02em;box-shadow:none}
+.native-app .primary:hover:not(:disabled){background:#fff}
+.native-app .primary:disabled{opacity:1;background:rgba(243,244,250,.18);color:rgba(243,244,250,.75)}
+.native-app :is(.secondary,.ghost){position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 18px;border:1px solid var(--rule);border-radius:999px;background:transparent;color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app :is(.secondary,.ghost)::after{content:'';position:absolute;inset:-2px 0}
+.native-app :is(.secondary,.ghost):hover:not(:disabled){background:rgba(243,244,250,.08)}
+.native-app :is(.secondary,.ghost):disabled{opacity:.5}
+.native-app .text-button{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 6px;border:0;background:none;color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app :is(.icon-button,.ui-icon-button){display:inline-grid;place-items:center;width:44px;height:44px;min-width:44px;padding:0;border:1px solid var(--rule);border-radius:50%;background:transparent;color:var(--ink)}
+.native-app :is(.icon-button,.ui-icon-button) svg{width:16px;height:16px}
+.native-app :is(.icon-button,.ui-icon-button):hover:not(:disabled){background:rgba(243,244,250,.08)}
+/* ⓘ label ⌄ */
+.native-app .ui-details>summary{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;font-weight:400;letter-spacing:.03em;list-style:none;cursor:pointer}
+.native-app .ui-details>summary::-webkit-details-marker{display:none}
+.native-app .ui-details>summary svg{width:13px;height:13px}
+.native-app .ui-details>summary:hover{color:var(--ink);background:none}
+.native-app .ui-details-content{color:var(--ink-muted);font-family:var(--font-text);font-size:13px;font-weight:400;line-height:1.7}
+.native-app .ui-details[open] .details-chevron{transform:rotate(180deg)}
+
+/* Title bar: a drag strip only; the window controls float over the left column. */
+.native-app .workspace-titlebar{position:absolute;top:0;left:0;right:0;z-index:7;height:30px;border:0;background:none}
+.native-app .titlebar-sidebar{position:absolute;left:84px;top:4px;width:auto;min-width:0;padding:0}
+.native-app .sidebar-toggle{width:28px;height:28px;border:0;border-radius:8px;color:var(--ink-muted);background:none}
+.native-app .sidebar-toggle:hover{color:var(--ink);background:rgba(243,244,250,.08)}
+
+/* Left column (x 30–226): no panel, everything sits on the field. */
+.native-app .sidebar{position:relative;display:flex;flex-direction:column;width:var(--left-column);min-width:var(--left-column);padding:56px 22px 20px 30px;border:0;background:none;box-shadow:none;overflow:visible}
+.native-app .sidebar-brand{display:block;margin:0 0 14px}
+.native-app .side-nav{display:flex;flex-direction:column}
+.native-app .side-nav-item{display:flex;align-items:center;width:100%;min-height:44px;padding:0;border:0;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:400;text-align:left;letter-spacing:.04em}
+.native-app .side-nav-number{width:30px;flex:none;font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--ink-muted)}
+.native-app .side-nav-rule{flex:none;width:18px;height:1px;margin:0 12px 0 4px;background:transparent}
+.native-app .side-nav-item[aria-current=page]{font-weight:600}
+.native-app .side-nav-item[aria-current=page] .side-nav-rule{background:var(--ink)}
+
+.native-app .side-categories{display:flex;flex-direction:column;flex:0 1 auto;min-height:0;margin-top:14px}
+/* The dock is pinned to the bottom; the category list scrolls rather than running under it. */
+.native-app .sidebar{padding-bottom:180px}
+.native-app.sidebar-collapsed .sidebar{padding-bottom:180px}
+@media(max-height:760px){.native-app .side-nav-item,.native-app .side-category,.native-app .side-section-heading{min-height:38px}}
+.native-app .side-section-heading{display:flex;align-items:center;justify-content:space-between;min-height:44px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em}
+.native-app .side-section-heading .side-add{display:grid;place-items:center;width:44px;height:44px;margin-right:-14px;border:0;background:none;color:var(--ink)}
+.native-app .side-section-heading .side-add svg{width:13px;height:13px}
+.native-app .side-category-list{min-height:0;overflow:auto;scrollbar-width:none}
+.native-app .side-category{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;width:100%;min-height:44px;padding:0;border:0;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px;text-align:left}
+.native-app .side-category>span:nth-child(2){overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.native-app .side-category small{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .side-category[aria-current=page]{font-weight:600}
+.native-app .side-dock{position:absolute;left:20px;bottom:20px;display:flex;flex-direction:column;gap:2px;width:200px;padding:8px;border-radius:24px;background:var(--pill)}
+.native-app .side-dock-item{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 14px;border:0;border-radius:18px;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:400;text-align:left}
+.native-app .side-dock-item svg{width:15px;height:15px}
+.native-app .side-dock-item:hover{background:rgba(243,244,250,.08)}
+.native-app .side-dock-item[aria-current=page]{background:var(--ink);color:var(--ink-on-grey);font-weight:600}
+.native-app .side-storage{display:flex;align-items:center;gap:8px;margin:4px 14px 6px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .side-storage i{width:6px;height:6px;border-radius:50%;background:var(--connected)}
+.native-app .settings-nav-heading{margin:16px 0 2px;font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--ink-muted);letter-spacing:.04em}
+/* Collapsed: numbers and drops only. */
+.native-app.sidebar-collapsed{--left-column:84px}
+.native-app.sidebar-collapsed .sidebar{padding:56px 12px 20px 24px}
+.native-app.sidebar-collapsed .ui-logo>span,.native-app.sidebar-collapsed :is(.side-nav-rule,.side-nav-label,.side-category>span:nth-child(2),.side-category small,.side-section-heading>span,.side-dock-item>span,.side-storage span){display:none}
+.native-app.sidebar-collapsed .side-dock{width:56px;left:14px;padding:6px}
+.native-app.sidebar-collapsed .side-dock-item{justify-content:center;padding:0}
+.native-app.sidebar-collapsed .side-storage{justify-content:center;margin:4px 0 6px}
+
+/* Heading row (x 272, y 30) and the body column (x 272, 880 wide); the right side stays open. */
+.native-app .native-scroll{padding:30px 24px 140px;scrollbar-gutter:auto}
+.native-app .native-scroll>*{max-width:var(--column);margin-left:0;margin-right:0}
+.native-app .native-scroll>.page-heading,.native-app .memory-page>.page-heading,.native-app .settings-content>.page-heading{max-width:none}
+.native-app .page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-height:44px;margin:0 0 24px;padding:0;flex-wrap:wrap}
+.native-app .page-heading-title{display:flex;flex-direction:column;gap:6px;padding:0;background:none;border:0}
+.native-app .page-heading-line{display:flex;align-items:center;gap:14px;min-height:44px}
+.native-app .page-heading-line>svg{display:none}
+.native-app .page-heading h1{margin:0;padding:0;background:none;font-family:var(--font-display);font-size:32px;font-weight:600;line-height:1.2;letter-spacing:.02em;font-feature-settings:"palt";color:var(--ink);white-space:nowrap}
+.native-app .page-heading-meta{padding:4px 10px;border-radius:999px;background:var(--pill);color:var(--ink);font-family:var(--font-mono);font-size:12px;font-weight:500;white-space:nowrap}
+.native-app .page-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-left:auto}
+.native-app .page-heading-actions>.ui-details{position:relative;padding:0 16px;border-radius:999px;background:var(--pill)}
+.native-app .page-heading-actions>.ui-details>summary{min-height:44px;color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app .page-heading-actions>.ui-details>.ui-details-content{position:absolute;right:0;top:52px;z-index:5;width:300px;padding:14px 16px;border-radius:20px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .heading-tools{display:flex;align-items:center;gap:8px}
+.native-app :is(.tool-search,.settings-search){display:flex;align-items:center;gap:10px;width:200px;height:44px;padding:0 16px;border:0;border-radius:999px;background:var(--pill);color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:400;text-align:left}
+.native-app .settings-search{width:230px;position:static;margin:0}
+.native-app :is(.tool-search,.settings-search) svg{flex:none;width:14px;height:14px}
+.native-app :is(.tool-search,.settings-search)>span,.native-app :is(.tool-search,.settings-search) input{flex:1;min-width:0}
+.native-app :is(.tool-search,.settings-search) input{padding:0;border:0;outline:0;background:none;color:var(--ink);font:inherit}
+.native-app :is(.tool-search,.settings-search) input::placeholder,.native-app .tool-search>span{color:var(--ink-muted)}
+.native-app .tool-search kbd{font-size:11px;color:var(--ink-muted)}
+.native-app :is(.tool-search,.settings-search):focus-within{box-shadow:0 0 0 2px #fff}
+.native-app :is(.tool-search,.settings-search) input:focus-visible{outline:0}
+.native-app .tool-new{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--rule-faint);border-radius:50%;background:var(--pill);color:var(--ink)}
+.native-app .tool-new svg{width:16px;height:16px}
+/* Page change: fade with a 6 px rise, 240 ms; no bounce. */
+
+
+/* Slabs for every reading surface (older containers included). */
+.native-app :is(.workspace-compose,.notes-library,.native-report,.native-answer,.category-manager,.category-builder,.trash-list,.settings-row-group,.settings-custom-panel,.ask-connection,.native-empty:not(.trash-list .native-empty),.native-scroll>.analysis-empty,.steps-list>.analysis-empty){
+  border:0;border-radius:28px;background:var(--slab);background-image:none;box-shadow:var(--slab-shadow);backdrop-filter:none}
+.native-app :is(.native-report,.native-answer,.category-manager,.category-builder,.trash-list,.ask-connection){padding:24px 28px}
+.native-app .native-section{border-color:var(--rule-faint)}
+.native-app :is(.native-section>p,.native-answer>p,.step-content>p,.other-row p,.manager-notes p){font-family:var(--font-text);font-size:16px;font-weight:400;line-height:1.8;color:var(--ink)}
+.native-app .native-section>span{font-family:var(--font-mono);font-size:11px;font-weight:500;color:var(--ink-muted)}
+.native-app .native-rating button{min-height:40px;padding:0 14px;border:1px solid var(--rule);border-radius:999px;background:none;color:var(--ink);font-size:13px;font-weight:600}
+.native-app .native-rating button.on{background:var(--ink);border-color:var(--ink);color:var(--ink-on-grey)}
+.native-app .native-rating select,.native-app .native-rating input{min-height:40px}
+.native-app .main :is(input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea):not(.orbit-view *,.tool-search *,.settings-search *,.workspace-compose textarea,.ask-input,.news-topic-add *){border:1px solid var(--rule);border-radius:14px;background:rgba(243,244,250,.05);color:var(--ink);font-family:var(--font-text);font-size:14px}
+.native-app .main :is(input,textarea)::placeholder{color:var(--ink-muted)}
+.native-app .native-sources button,.native-app .digest-claim-sources button,.native-app .answer-claim button{color:var(--ink-muted);font-family:var(--font-text);font-size:13px}
+.native-app :is(.native-sources small,.digest-claim-meta,.answer-claim>small,.step-index){font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .toast,.native-app .native-alert{border:0;border-radius:999px;background:var(--pill);color:var(--ink);box-shadow:var(--slab-shadow);font-family:var(--font-text);font-size:13px}
+.native-app .native-alert{border-radius:20px;box-shadow:inset 0 0 0 1px rgba(255,150,140,.5)}
+/* Progress of a wait: the real steps on a slab (muted ink only on slab or pill). */
+.native-app .progress-panel{container-type:inline-size;max-width:850px;margin:18px auto 22px;padding:18px 22px;border-radius:24px;background:var(--slab);box-shadow:var(--slab-shadow);color:var(--ink);font-family:var(--font-text)}
+.native-app .native-report>.progress-panel{max-width:none}
+.native-app .progress-head{display:flex;align-items:center;gap:10px;min-width:0}
+.native-app .progress-head strong{font-size:14px;font-weight:600}
+.native-app .progress-head time{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.native-app .progress-label{min-width:0;overflow:hidden;color:var(--ink-muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.native-app .progress-pulse{flex:none;width:6px;height:6px;border-radius:50%;background:#fff;box-shadow:var(--drop-shadow)}
+.native-app .progress-steps{display:grid;gap:2px;margin:14px 0 0;padding:0;list-style:none}
+.native-app .progress-steps li{display:grid;grid-template-columns:18px minmax(88px,auto) 1fr auto;align-items:start;gap:10px;min-height:26px;font-size:13px;line-height:1.6}
+.native-app .progress-steps li.is-pending{color:var(--ink-muted)}
+.native-app .progress-steps li.is-pending .progress-step-label{opacity:.72}
+.native-app .progress-mark{display:inline-flex;align-items:center;justify-content:center;width:18px;height:21px}
+.native-app .progress-mark svg{width:13px;height:13px;color:var(--connected)}
+.native-app .progress-mark i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5}
+.native-app .progress-steps li.is-current .progress-mark i{width:7px;height:7px;background:#fff;opacity:1;box-shadow:var(--drop-shadow);animation:pure-thinking 900ms ease-in-out infinite alternate}
+.native-app .progress-steps li.is-current .progress-step-label{font-weight:600}
+.native-app .progress-step-detail{min-width:0;color:var(--ink-muted);font-size:12px;overflow-wrap:anywhere}
+.native-app .progress-steps time{padding-top:2px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.native-app .progress-thought{margin:12px 0 0;padding:10px 14px;border-radius:14px;background:rgba(243,244,250,.05);color:var(--ink);font-size:13px;line-height:1.7}
+.native-app .progress-thought span{display:block;margin-bottom:2px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .progress-inline-list{display:grid;gap:6px;margin:0 0 18px}
+.native-app .progress-inline{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 16px;border-radius:999px;background:var(--pill);box-shadow:var(--slab-shadow);color:var(--ink);font-size:12px}
+.native-app .progress-inline strong{flex:none;font-weight:600}
+.native-app .progress-inline .progress-label{flex:0 1 auto;max-width:34%}
+.native-app .progress-inline-step{flex:1 1 auto;min-width:0;overflow:hidden;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+/* Narrow places (beside the ask disc, the つながり side panel): the detail goes under its step, and
+   only the steps reached so far are listed. */
+@container (max-width:420px){
+  .native-app .progress-steps li{grid-template-columns:18px 1fr auto;column-gap:8px}
+  .native-app .progress-step-label{grid-column:2;grid-row:1}
+  .native-app .progress-steps time{grid-column:3;grid-row:1}
+  .native-app .progress-step-detail{grid-column:2/4;grid-row:2;margin-bottom:4px}
+  .native-app .progress-steps li.is-pending{display:none}
+}
+html[data-reduced="true"] .native-app .progress-steps li.is-current .progress-mark i{animation:none}
+@media(prefers-reduced-motion:reduce){.native-app .progress-steps li.is-current .progress-mark i{animation:none}}
+.native-app .analysis-empty,.native-app .analysis-empty h3{color:var(--ink)}
+.native-app .analysis-empty h3{font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .analysis-empty p{color:var(--ink-muted);font-size:14px}
+.native-app .analysis-empty>svg{display:none}
+
+/* S1 Memo list */
+.native-app .notes-workspace{padding-top:30px}
+.native-app .note-compose-section{width:100%;margin:0 0 20px}
+.native-app .workspace-compose{padding:20px 24px 16px}
+.native-app .workspace-compose:focus-within{box-shadow:var(--slab-shadow),0 0 0 2px #fff}
+.native-app .compose-context{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .compose-context svg{width:11px;height:11px}
+.native-app .workspace-compose textarea{width:100%;min-height:2lh;height:auto;margin:8px 0 6px;padding:0;border:0;outline:0;resize:none;background:none;color:var(--ink);font-family:var(--font-text);font-size:20px;font-weight:500;line-height:1.5;field-sizing:content;max-height:8lh}
+.native-app .workspace-compose textarea::placeholder{color:var(--ink-muted)}
+.native-app .compose-toolbar{display:flex;align-items:center;gap:14px}
+.native-app .compose-toolbar>.icon-button{width:40px;height:40px;min-width:40px}
+.native-app .compose-toolbar>.icon-button::after{content:'';position:absolute;inset:-2px}
+.native-app .compose-toolbar>.icon-button{position:relative}
+.native-app .compose-ai-notice{display:flex;align-items:center;gap:8px;margin:0;padding:0;border:0;background:none;color:var(--ink-muted);font-family:var(--font-text);font-size:13px}
+.native-app .compose-ai-notice svg{width:13px;height:13px}
+.native-app .compose-ai-notice button{min-height:44px;padding:0 4px;border:0;background:none;color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.native-app .compose-shortcut{display:inline;margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ink-muted)}
+.native-app .compose-save{display:grid;place-items:center;width:46px;height:46px;margin:0;border:0;border-radius:50%;background:var(--ink);color:var(--ink-on-grey);box-shadow:none}
+.native-app .compose-save svg{width:16px;height:16px;transform:none}
+.native-app .compose-save:hover:not(:disabled){background:#fff;color:var(--ink-on-grey)}
+.native-app .compose-save:disabled{opacity:1;background:rgba(243,244,250,.18);color:rgba(243,244,250,.75)}
+.native-app .notes-library{padding:8px 24px 16px}
+.native-app .notes-library .timeline{display:block;max-width:none;margin:0}
+.native-app .notes-library .timeline .date-label,.native-app .date-label{display:flex;align-items:center;gap:14px;margin:0;padding:18px 0 8px;border:0;background:none;color:var(--ink);font-family:var(--font-mono);font-size:12px;font-weight:500;letter-spacing:.04em}
+.native-app .date-label::after{content:'';flex:1;height:1px;background:var(--rule-faint)}
+.native-app .note-line{display:grid;grid-template-columns:24px 64px minmax(0,1fr) 90px;align-items:center;width:100%;height:52px;padding:0;border:0;border-bottom:1px solid var(--rule-faint);border-radius:0;background:none;color:var(--ink);text-align:left}
+.native-app .note-line:last-child{border-bottom:0}
+.native-app .note-line:hover{background:rgba(243,244,250,.04)}
+.native-app .note-line.selected{background:rgba(243,244,250,.08)}
+.native-app .note-line:focus-visible{outline-offset:-2px}
+.native-app .note-line time{font-size:12px;color:var(--ink-muted)}
+.native-app .note-line-body{display:flex;align-items:center;gap:10px;min-width:0}
+.native-app .note-line-text{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:var(--font-text);font-size:16px;font-weight:500}
+.native-app .note-line-body small{flex:none;display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .note-line-body small svg{width:10px;height:10px}
+.native-app .link-intent{display:inline-flex;align-items:center;height:18px;padding:0 8px;border-radius:999px;background:var(--ink);color:var(--ink-on-grey);font-family:var(--font-text);font-size:11px;font-weight:600;letter-spacing:0}
+/* What AI read from the link, kept apart from the page's own title and labelled as AI's reading. */
+.native-app .inspector-article>.link-reading{display:block;margin:0 0 14px;padding:14px 16px;border-radius:18px;background:rgba(243,244,250,.05)}
+.native-app .link-reading-kind{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .inspector-article .link-reading h3{margin:8px 0 2px;color:var(--ink);font-family:var(--font-text);font-size:16px;font-weight:600}
+.native-app .inspector-article .link-reading p{color:var(--ink);font-size:13px}
+.native-app .inspector-article .link-reading .link-reading-creator{margin:0 0 6px;color:var(--ink-muted)}
+.native-app .inspector-article .link-reading small{color:var(--ink-muted);font-size:11px}
+.native-app .inspector-article .link-reading-source{font-size:12px}
+.native-app .note-line-tag{overflow:hidden;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);text-align:right;white-space:nowrap;text-overflow:ellipsis}
+.native-app .note-line.just-saved{animation:pure-row-saved 1.1s ease-out}
+@keyframes pure-row-saved{from{background:rgba(160,175,255,.2)}to{background:none}}
+.native-app .notes-library .native-empty{border:0;background:none;box-shadow:none;padding:28px 0;text-align:center}
+
+/* S2 まとめ */
+.native-app .native-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:-6px 0 22px}
+.native-app .native-tabs button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--pill);color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:500}
+.native-app .native-tabs button small{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .native-tabs button.active{background:var(--ink);color:var(--ink-on-grey);font-weight:600}
+.native-app .native-tabs button.active small{color:var(--ink-on-grey)}
+.native-app .native-report{padding:0;overflow:hidden}
+.native-app .native-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:24px 28px 20px;border-bottom:1px solid var(--rule-faint)}
+.native-app .native-report-head p{margin:4px 0 6px;font-family:var(--font-text);font-size:15px;font-weight:600;color:var(--ink)}
+.native-app .native-report>:not(.native-report-head){margin-left:28px;margin-right:28px}
+.native-app .native-report>:last-child{margin-bottom:24px}
+.native-app .report-mark{position:relative;display:grid;place-items:center;width:180px;height:180px;margin:36px auto 8px}
+.native-app .report-mark>.ring{position:absolute;inset:0;border:1px solid var(--rule);border-radius:50%}
+.native-app .report-mark>.ring.is-dashed{inset:32px;border-style:dashed}
+.native-app .report-mark>.ring.is-inner{inset:58px}
+.native-app .report-mark .ui-ripple{inset:58px}
+.native-app .report-empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 0 40px;text-align:center}
+.native-app .report-empty h3{margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .report-empty p{margin:0;color:var(--ink-muted);font-size:14px}
+.native-app .report-empty .empty-actions{display:flex;gap:10px;margin-top:10px}
+
+/* S7 ごみ箱 */
+.native-app .stage{position:relative;min-height:calc(100dvh - 140px)}
+.native-app .stage-center{position:absolute;transform:translate(-50%,-50%)}
+.native-app .trash-empty{display:grid;place-items:center;text-align:center}
+.native-app .trash-empty .ring{position:absolute;inset:calc(-56px * var(--s,1));border:1px dashed var(--rule);border-radius:50%}
+.native-app .trash-empty .ui-ripple{inset:0}
+.native-app .trash-empty-disc{display:grid;place-items:center}
+.native-app .trash-empty-copy{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px}
+.native-app .trash-empty-copy svg{width:18px;height:18px}
+.native-app .trash-empty-copy h3{margin:0;font-family:var(--font-text);font-size:18px;font-weight:600}
+.native-app .trash-list{padding:8px 24px 16px}
+.native-app .trash-row{display:grid;grid-template-columns:24px 64px minmax(0,1fr) auto;align-items:center;min-height:60px;padding:0;border-bottom:1px solid var(--rule-faint);background:none}
+.native-app .trash-row:last-child{border-bottom:0}
+.native-app .trash-row p{margin:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:var(--font-text);font-size:16px;font-weight:500}
+.native-app .trash-row time{font-size:12px;color:var(--ink-muted)}
+.native-app .trash-actions{display:flex;gap:8px;margin-left:16px}
+
+/* Overlays */
+.native-app .inspector{top:16px;right:16px;bottom:16px;border:0;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow);backdrop-filter:none;overflow:hidden}
+.native-app .inspector .original{font-family:var(--font-text);font-size:16px;line-height:1.8}
+.native-app .overlay{background:rgba(2,3,12,.55);backdrop-filter:none}
+.native-app .dialog.capture{border:0;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow),0 40px 120px rgba(0,0,0,.5);backdrop-filter:none}
+.native-app .dialog.capture textarea{border:0;resize:none;background:none;color:var(--ink);font-family:var(--font-text);font-size:20px;font-weight:500}
+.native-app .dialog-brand span{font-family:var(--font-text)}
+.native-app .capture-source button{min-height:36px;border:1px solid var(--rule);border-radius:999px;background:none;color:var(--ink)}
+.native-app .capture-source button.active{background:var(--ink);border-color:var(--ink);color:var(--ink-on-grey)}
+
+/* Motion off: OS or app setting, or the window is in the background. */
+:root[data-reduced="true"] :is(.ui-ripple i,.ui-dial-turn,.native-scroll,.note-line){animation:none!important}
+:root[data-reduced="true"] .ui-ripple i{opacity:.45;transform:scale(1)}
+:root[data-reduced="true"] .ui-ripple i+i{display:none}
+:root[data-window-active="false"] :is(.ui-ripple i,.ui-dial-turn){animation-play-state:paused}
+
+/* Stages: discs, dials and rings centred on the hole (S4, S5, S7). */
+.native-app .native-scroll>.stage{max-width:none}
+.native-app .stage-center{position:absolute;transform:translate(-50%,-50%)}
+.native-app .steps-stage,.native-app .ask-stage{min-height:calc(100dvh - 104px)}
+.native-app .steps-ring circle{fill:none;stroke:var(--rule);stroke-dasharray:2 6}
+.native-app .ask-ring circle{fill:none;stroke:var(--rule)}
+.native-app .ask-ring .ask-ring-drop{fill:#fff;stroke:none;filter:drop-shadow(0 0 5px rgba(120,150,255,.95))}
+.native-app :is(.steps-disc,.ask-disc){display:grid;place-items:center;text-align:center}
+.native-app :is(.steps-disc-copy,.ask-disc-copy){display:flex;flex-direction:column;align-items:center;gap:14px}
+.native-app .steps-text{margin:0;font-family:var(--font-display);font-size:clamp(21px,calc(23px * var(--s,1)),23px);font-weight:600;line-height:1.5;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .steps-empty-title{margin:0;font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .steps-empty-copy{margin:0;color:var(--ink-muted);font-size:14px}
+.native-app :is(.steps-disc,.ask-disc) .native-rating{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0;padding:0;border:0}
+.native-app :is(.steps-disc,.ask-disc) .empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.native-app .steps-satellites{position:absolute;inset:0;margin:0;padding:0;list-style:none;pointer-events:none}
+.native-app .steps-satellites>li{position:absolute;width:0;height:0}
+.native-app .steps-satellite{position:absolute;right:-22px;top:0;display:flex;align-items:center;gap:6px;min-height:44px;padding:0;border:0;background:none;color:var(--ink);transform:translateY(-50%);pointer-events:auto;text-align:right}
+.native-app .steps-satellite .ui-drop{margin:0 17px}
+.native-app .steps-satellite-copy{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding:7px 14px;border-radius:16px;background:var(--pill)}
+.native-app .steps-satellite-copy>span:last-child{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;font-family:var(--font-text);font-size:14px;font-weight:600;line-height:1.45}
+.native-app .steps-more{position:absolute;pointer-events:auto}
+.native-app .steps-more .ghost{transform:translate(-100%,-50%);background:var(--pill)}
+.native-app .steps-pager{display:flex;align-items:center;gap:14px}
+.native-app .steps-pager .icon-button{background:var(--pill)}
+.native-app .steps-list-narrow{position:absolute;width:440px;margin:0;padding:8px 16px;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow);list-style:none;transform:translateX(-50%)}
+.native-app .steps-list-narrow button{display:grid;grid-template-columns:24px 90px minmax(0,1fr);align-items:center;width:100%;min-height:48px;padding:0;border:0;background:none;color:var(--ink);text-align:left}
+.native-app .steps-list-narrow span:last-child{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;font-weight:600}
+.native-app .steps-stage:has(.steps-list-narrow){min-height:calc(100dvh + 260px)}
+.native-app .ask-input{width:100%;min-height:4.5em;padding:0;border:0;outline:0;resize:none;background:none;color:var(--ink);font-family:var(--font-text);font-size:clamp(20px,calc(22px * var(--s,1)),22px);font-weight:500;line-height:1.5;text-align:center}
+.native-app .ask-input::placeholder{color:var(--ink-muted)}
+.native-app .ask-disc:has(.ask-input:focus-visible){box-shadow:var(--disc-shadow),0 0 0 2px #fff}
+.native-app .ask-examples-wrap{position:absolute;left:0;transform:translateY(-50%)}
+.native-app .ask-examples-wrap.is-below{width:440px;transform:translateX(-50%)}
+.native-app .ask-examples-wrap>.progress-panel{margin:0}
+.native-app .ask-examples{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.native-app .ask-examples h2{margin:0 0 2px}
+.native-app .ask-example{display:inline-flex;align-items:center;gap:10px;max-width:100%;min-height:44px;padding:0 18px;border:0;border-radius:999px;background:var(--pill);color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:400;text-align:left}
+.native-app .ask-example svg{flex:none;width:14px;height:14px}
+.native-app .ask-connection-line{display:flex;align-items:center;gap:8px;padding:0 16px;border-radius:999px;background:var(--pill);font-size:13px}
+.native-app .ask-stage:has(.ask-examples-wrap.is-below){min-height:calc(100dvh + 160px)}
+.native-app .ask-answers{display:flex;flex-direction:column;gap:16px;max-width:var(--column)}
+.native-app .native-answer h3{margin:8px 0 10px;font-family:var(--font-text);font-size:18px;font-weight:600}
+.native-app .native-answer>p{font-size:16px;font-weight:400;line-height:1.8}
+
+/* S6 カテゴリを管理 */
+.native-app .category-manager{width:840px;max-width:100%;padding:8px 24px 20px}
+.native-app .category-manager-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:72px;padding:0;border-bottom:1px solid var(--rule-faint)}
+.native-app .category-manager-head h2{display:flex;align-items:baseline;gap:10px;margin:0;font-family:var(--font-text);font-size:18px;font-weight:600}
+.native-app .manager-list{display:block}
+.native-app .manager-category{border-bottom:1px solid var(--rule-faint)}
+.native-app .manager-row{display:flex;align-items:center;gap:10px;min-height:68px;padding:0}
+.native-app .manager-name{display:flex;align-items:baseline;gap:12px;flex:1;min-width:0;min-height:68px;padding:0;border:0;background:none;color:var(--ink);text-align:left}
+.native-app .manager-name .ui-drop{align-self:center;margin:0 4px 0 2px}
+.native-app .manager-name>span:nth-child(2){overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:var(--font-text);font-size:18px;font-weight:600}
+.native-app .manager-actions{display:flex;align-items:center;gap:8px}
+.native-app .manager-menu{position:relative;opacity:0;transition:opacity .2s}
+.native-app .manager-row:is(:hover,:focus-within) .manager-menu,.native-app .manager-menu.is-open{opacity:1}
+.native-app .manager-menu-list{position:absolute;right:0;top:52px;z-index:6;display:flex;flex-direction:column;min-width:170px;padding:6px;border-radius:20px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .manager-menu-list button{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:0;border-radius:14px;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px;text-align:left}
+.native-app .manager-menu-list button:is(:hover,:focus-visible){background:rgba(243,244,250,.1);outline-offset:-2px}
+.native-app .manager-menu-list button:disabled{opacity:.45}
+.native-app .manager-menu-list svg{width:14px;height:14px}
+.native-app .manager-notes{display:flex;flex-direction:column;gap:6px;padding:4px 0 16px 24px}
+.native-app .manager-notes>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.native-app .manager-notes p{margin:0;font-size:15px;line-height:1.6}
+.native-app .manager-empty{color:var(--ink-muted);font-size:14px}
+.native-app .manager-other{margin-top:8px}
+.native-app .other-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;border-bottom:1px solid var(--rule-faint)}
+.native-app .manager-archive{display:flex;flex-direction:column;gap:6px;margin-top:18px}
+.native-app .manager-archive>div{display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.native-app :is(.native-merge,.native-rename,.native-split){display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px 24px;padding:16px;border-radius:20px;background:rgba(243,244,250,.04)}
+.native-app .category-bubbles{position:absolute;top:118px;right:24px;width:266px}
+.native-app .category-bubbles h2{margin:0 0 10px}
+.native-app .category-bubble-field{position:relative}
+.native-app .category-bubble{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;border:0;border-radius:50%;background:var(--disc-fill);box-shadow:var(--disc-shadow),inset 0 0 0 1px rgba(120,150,255,.45);color:var(--ink)}
+.native-app .category-bubble>span:first-child{max-width:80%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .category-bubble.is-small>span:first-child{font-family:var(--font-text);font-size:12px}
+.native-app .category-bubble .ui-mono{font-size:11px;color:var(--ink-muted)}
+.native-app .categories-page.has-bubbles .category-manager{width:min(840px,calc(100vw - var(--left-column) - 24px - 266px - 48px))}
+
+/* S8 設定 */
+.native-app .settings-navigation .side-nav-item{padding-left:0}
+.native-app .settings-navigation .settings-nav-heading:first-child{margin-top:4px}
+.native-app .side-dock.is-back{width:auto;padding:0;background:var(--pill);border-radius:999px}
+.native-app .side-dock.is-back .side-dock-item{padding:0 22px;border-radius:999px}
+.native-app .settings-scroll .settings-content{max-width:var(--column)}
+.native-app .settings-breadcrumb{display:flex;gap:2px;font-size:11px}
+.native-app .settings-group{margin-bottom:26px}
+.native-app .settings-group-heading{margin:0 0 10px;padding:0 4px;border:0;background:none}
+.native-app .settings-group-heading h2{display:block;margin:0;padding:0;border:0;background:none;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.04em}
+.native-app .settings-group-heading p{display:block;margin:6px 0 0;padding:0;background:none;color:var(--ink-muted);font-size:13px}
+.native-app .settings-row-group{padding:4px 28px;overflow:visible}
+.native-app .settings-row{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:96px;padding:16px 0;border-bottom:1px solid var(--rule-faint)}
+.native-app .settings-row:last-child{border-bottom:0}
+.native-app .settings-row-label{display:flex;align-items:center;gap:14px}
+.native-app .settings-row-label svg{width:16px;height:16px;color:var(--ink-muted)}
+.native-app .settings-row h3{margin:0;font-family:var(--font-text);font-size:16px;font-weight:600;color:var(--ink)}
+.native-app .settings-row-copy>p,.native-app .settings-row-copy>.ui-details,.native-app .settings-row-extra{margin:4px 0 0 30px;color:var(--ink-muted);font-size:13px}
+.native-app .settings-status{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:12px}
+.native-app .settings-status i{width:7px;height:7px;border-radius:50%;background:var(--ink-muted)}
+.native-app .settings-status.is-connected{color:var(--connected)}
+.native-app .settings-status.is-connected i{background:var(--connected);box-shadow:0 0 8px rgba(91,228,155,.7)}
+.native-app .settings-group-note{margin:10px 0 0;padding:0;background:none}
+.native-app .connection-status{display:inline-flex;align-items:center;gap:6px;color:var(--connected);font-family:var(--font-mono);font-size:12px}
+
+/* S3 つながり: the brain stays; field mirrored so its hole sits behind the brain. */
+.native-app .memory-scroll{flex:1;min-width:0;overflow:auto;background:none;backdrop-filter:none}
+.native-app .memory-page{--memory-text:var(--ink);--memory-muted:var(--ink-muted);min-height:100%;padding:30px 24px 24px;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px}
+.native-app .memory-period{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 6px 0 16px;border-radius:999px;background:var(--pill);color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app .memory-period svg{width:14px;height:14px}
+.native-app .main .memory-period select{height:36px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:var(--ink);font-family:var(--font-mono);font-size:12px}
+.native-app .memory-toolbar{display:flex;align-items:center;gap:12px;margin:-8px 0 0;padding:0;border:0;background:none;backdrop-filter:none}
+.native-app .memory-toolbar>div[role=group]{display:inline-flex;gap:2px;padding:4px;border-radius:999px;background:var(--pill)}
+.native-app .memory-toolbar button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-radius:999px;background:none;color:var(--ink);font-family:var(--font-text);font-size:14px;font-weight:500}
+.native-app .memory-toolbar button svg{width:14px;height:14px}
+.native-app .memory-toolbar button[aria-pressed=true]{background:var(--ink);color:var(--ink-on-grey);font-weight:600}
+.native-app .memory-legend{position:static;display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;margin:12px 0 0;padding:0;color:var(--ink);font-family:var(--font-mono);font-size:11px;pointer-events:auto}
+.native-app .memory-legend>span{display:inline-flex;align-items:center;gap:7px}
+.native-app .memory-legend i{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:var(--drop-shadow)}
+.native-app .memory-legend :is(.line,.dash,.dot){width:22px;height:0;border-radius:0;background:none;box-shadow:none;border-top:1px solid var(--ink)}
+.native-app .memory-legend .dash{border-top-style:dashed}
+.native-app .memory-legend .dot{border-top-style:dotted;border-top-width:2px}
+.native-app .memory-legend .ui-details>summary{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.native-app .memory-legend .ui-details[open]{flex-basis:100%}
+.native-app .memory-workspace{display:grid;grid-template-columns:minmax(0,1fr) 312px;gap:24px;min-height:560px}
+.native-app .memory-map-column{position:relative}
+.native-app .memory-canvas{background:none}
+.native-app .brain-glow{fill:none;stroke:rgba(80,110,255,.22);stroke-width:10}
+.native-app .brain-outline{fill:rgba(2,2,8,.5);stroke:rgba(243,244,250,.7);stroke-width:1.3}
+.native-app .brain-fold{fill:none;stroke:#f3f4fa;stroke-width:1;opacity:.3}
+.native-app .memory-region{fill:rgba(120,150,255,.05);stroke:rgba(243,244,250,.22);stroke-width:.7;opacity:1}
+.native-app .memory-region-inner{stroke:rgba(243,244,250,.1);opacity:1}
+/* Line kinds keep their meaning: solid = confirmed, dashed = unconfirmed, dotted = shared words. Selection only brightens. */
+.native-app .memory-link{fill:none;stroke:#f3f4fa;stroke-width:1;stroke-dasharray:5 4}
+.native-app .memory-link.confirmed{stroke-dasharray:none}
+.native-app .memory-link.local{stroke-dasharray:1 4;stroke-linecap:round;stroke-width:1.4}
+.native-app .memory-link.lit{stroke:#fff;stroke-width:1.4;animation:none}
+.native-app .point-glow,.native-app .anchor-glow{fill:rgba(120,150,255,.95);opacity:.55}
+.native-app .point-core{fill:#fff}
+.native-app .memory-point.selected .point-core{fill:#fff}
+.native-app .point-ripple circle{fill:none;stroke:#fff;stroke-width:1;transform-box:fill-box;transform-origin:center;opacity:0;animation:ui-ripple 3.4s cubic-bezier(.2,.6,.3,1) infinite}
+.native-app .point-ripple circle+circle{animation-delay:1.7s}
+.native-app .memory-point:focus-visible .point-core{stroke:#fff;stroke-width:2}
+.native-app .memory-anchor text{fill:var(--ink-muted);font-family:var(--font-mono);font-size:11px;letter-spacing:.04em}
+.native-app .memory-anchor .anchor-caption{font-family:var(--font-mono);font-size:9px;fill:var(--ink-muted)}
+.native-app .memory-anchor.selected text{fill:var(--ink)}
+.native-app .memory-balloon-wrap{overflow:visible;pointer-events:none}
+.native-app .memory-balloon{display:inline-flex;flex-direction:column;gap:3px;max-width:320px;padding:9px 16px 10px;border-radius:20px;background:var(--pill)}
+.native-app .memory-balloon.is-left{float:right;text-align:right}
+.native-app .memory-balloon span{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .memory-balloon p{display:-webkit-box;overflow:hidden;margin:0;-webkit-box-orient:vertical;-webkit-line-clamp:2;color:var(--ink);font-family:var(--font-display);font-size:16px;font-weight:600;line-height:1.4;letter-spacing:.02em;font-feature-settings:"palt"}
+.native-app .memory-zoom{position:absolute;right:8px;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:0;padding:4px;border:0;border-radius:999px;background:var(--pill)}
+.native-app .memory-zoom button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:none;color:var(--ink)}
+.native-app .memory-zoom button:hover{background:rgba(243,244,250,.1)}
+.native-app .memory-zoom span{width:auto;padding:4px 0;font-family:var(--font-mono);font-size:11px;color:var(--ink)}
+.native-app .memory-field-caption{margin:6px 0 0;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px}
+.native-app .memory-timeline{margin:12px 0 0;padding:16px 22px 14px;border:0;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .memory-timeline>div:first-child{display:flex;align-items:center;gap:12px;color:var(--ink);font-family:var(--font-mono);font-size:11px}
+.native-app .memory-timeline>div:first-child>span{font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app .memory-timeline strong{margin-left:auto;color:var(--ink);font-family:var(--font-mono);font-size:12px;font-weight:500}
+.native-app .memory-timeline button{min-height:44px;padding:0 0 0 8px;border:0;background:none;color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600;text-decoration:underline;text-underline-offset:4px}
+.native-app .memory-bars{gap:4px;height:36px;margin:4px 0 0}
+.native-app .memory-bars i{border-radius:2px 2px 0 0;background:#f3f4fa}
+.native-app .memory-timeline input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:24px;margin:0;background:transparent;cursor:ew-resize}
+.native-app .memory-timeline input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--rule)}
+.native-app .memory-timeline input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;margin-top:-6px;border-radius:50%;background:#fff;box-shadow:var(--drop-shadow)}
+.native-app .memory-time-labels{display:flex;justify-content:space-between;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px}
+.native-app .memory-detail{display:flex;flex-direction:column;min-height:0;border:0;border-radius:28px;background:var(--slab);background-image:none;box-shadow:var(--slab-shadow);backdrop-filter:none;overflow:hidden}
+.native-app .memory-detail-scroll{padding:24px 24px 12px}
+.native-app .memory-detail h3{margin:6px 0 10px;font-family:var(--font-text);font-size:16px;font-weight:600;color:var(--ink)}
+.native-app .memory-detail-kicker{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .memory-original{margin:0 0 14px;font-family:var(--font-display);font-size:24px;font-weight:600;line-height:1.5;letter-spacing:.02em;font-feature-settings:"palt";color:var(--ink)}
+.native-app .memory-description{color:var(--ink-muted);font-size:14px;line-height:1.7}
+.native-app .memory-theme-list button{min-height:52px;border-color:var(--rule-faint);color:var(--ink);font-size:14px}
+.native-app .memory-theme-list small,.native-app .memory-note-meta{color:var(--ink-muted);font-family:var(--font-mono);font-size:11px}
+.native-app .memory-detail-footer{padding:16px 24px 20px;border-top:1px solid var(--rule-faint)}
+.native-app .memory-ask label{font-family:var(--font-text);font-size:14px;font-weight:600;color:var(--ink)}
+.native-app .memory-ask>div{display:flex;align-items:center;gap:6px;margin:10px 0 4px;padding:4px 4px 4px 16px;border:1px solid var(--rule);border-radius:999px}
+.native-app .main .memory-ask input{flex:1;min-width:0;height:44px;padding:0;border:0;background:none;color:var(--ink);font-size:14px}
+.native-app .memory-ask button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:var(--ink);color:var(--ink-on-grey)}
+.native-app .memory-ask button:disabled{opacity:1;background:rgba(243,244,250,.18);color:rgba(243,244,250,.75)}
+.native-app :is(.memory-small-button,.memory-back,.memory-connect,.memory-review button,.memory-hidden button){display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 16px;border:1px solid var(--rule);border-radius:999px;background:none;color:var(--ink);font-family:var(--font-text);font-size:13px;font-weight:600}
+:root[data-reduced="true"] .point-ripple circle{animation:none;opacity:.45;transform:scale(1)}
+:root[data-reduced="true"] .point-ripple circle+circle{display:none}
+:root[data-window-active="false"] .point-ripple circle{animation-play-state:paused}
+.native-app .settings-scroll .settings-content{max-width:none}
+.native-app .settings-content>:not(.page-heading){max-width:var(--column)}
+.native-app .ui-details>summary{white-space:nowrap}
+.native-app .manager-name{align-items:center}
+.native-app .manager-name .ui-mono{align-self:center}
+/* Text placed straight on the field uses full ink: muted ink drops below 4.5:1 where the field turns grey.
+   Muted ink is only used on slabs, pills and discs. */
+.native-app :is(.side-nav-number,.side-section-heading,.side-category small,.settings-nav-heading,.settings-group-heading h2,.settings-group-heading p,.memory-field-caption,.category-bubbles>h2,.steps-pager .ui-mono,.ask-examples>h2,.settings-breadcrumb){color:var(--ink)}
+.native-app :is(.ui-slab,.ui-disc,.ui-pill,.native-report,.native-answer,.category-manager,.notes-library,.workspace-compose,.trash-list,.memory-detail,.memory-timeline,.steps-list-narrow,.steps-satellite-copy,.memory-balloon) .ui-mono{color:var(--ink-muted)}
+.native-app .memory-legend .ui-details-content{position:absolute;z-index:5;width:320px;margin-top:8px;padding:14px 16px;border-radius:20px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .memory-legend .ui-details{position:relative}
+.native-app .memory-legend .ui-details[open]{flex-basis:auto}
+.native-app .native-scroll>*{flex-shrink:0}
+
+/* 44 × 44 hit targets everywhere. */
+.native-app .ui-details>summary{min-height:44px}
+.native-app :is(.native-rating button,.memory-small-button,.memory-back,.memory-connect,.memory-review button,.memory-hidden button){position:relative}
+.native-app :is(.native-rating button,.memory-small-button,.memory-back,.memory-connect,.memory-review button,.memory-hidden button)::after{content:'';position:absolute;inset:-2px 0}
+.native-app .next-step-pointer button{min-height:44px}
+.native-app .dialog.capture :is(button,.capture-ai-policy){min-height:44px}
+.native-app .dialog.capture .escape{min-width:44px}
+.native-app .titlebar-sidebar{top:0}
+.native-app .sidebar-toggle{width:44px;height:44px;border-radius:50%}
+.native-app .memory-timeline input[type=range]{height:44px}
+.native-app :is(.tool-search,.settings-search) input{height:44px}
+.native-app .main select{min-height:44px}
+.native-app .main .memory-period select{height:44px}
+.native-app .orbit-input textarea{min-height:44px}
+.native-app .orbit-input kbd{color:var(--ink)}
+.native-app :is(.builder-notes,.split-note-list) label{min-height:44px;display:flex;align-items:center;gap:10px}
+.native-app .note-ai-policy>div{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+/* Measured 4.39:1 at its worst spot on the mirrored field (collapsed column, 1100 × 700): the legend sits on a pill. */
+.native-app .memory-legend{display:inline-flex;min-height:44px;padding:0 18px;border-radius:999px;background:var(--pill)}
+
+/* Left column hover: the name lifts 2 px and gathers the accent glow; the rule draws in from the left. */
+.native-app .side-nav-icon{display:none;flex:none;width:16px;height:16px}
+.native-app :is(.side-nav-label,.side-category>span:nth-child(2),.side-dock-item>span){display:inline-block;transition:transform .22s cubic-bezier(.2,.75,.2,1),text-shadow .22s ease}
+.native-app :is(.side-nav-item:is(:hover,:focus-visible) .side-nav-label,.side-category:is(:hover,:focus-visible)>span:nth-child(2),.side-dock-item:not([aria-current=page]):is(:hover,:focus-visible)>span){transform:translateY(-2px);text-shadow:0 0 14px rgba(120,150,255,.95),0 0 2px rgba(255,255,255,.55)}
+.native-app .side-nav-rule{background:var(--ink);transform:scaleX(0);transform-origin:left center;transition:transform .26s cubic-bezier(.2,.75,.2,1)}
+.native-app .side-nav-item[aria-current=page] .side-nav-rule{background:var(--ink);transform:scaleX(1)}
+.native-app .side-nav-item:not([aria-current=page]):is(:hover,:focus-visible) .side-nav-rule{transform:scaleX(.55)}
+.native-app .side-category .ui-drop{transition:box-shadow .22s ease}
+.native-app .side-category:is(:hover,:focus-visible) .ui-drop{box-shadow:0 0 0 4px rgba(255,255,255,.14),0 0 18px rgba(120,150,255,1)}
+/* Collapsed: icons instead of numbers; the name floats out to the right as a pill on hover or focus. */
+.native-app.sidebar-collapsed .side-nav-number{display:none}
+.native-app.sidebar-collapsed .side-nav-icon{display:block}
+.native-app.sidebar-collapsed :is(.side-nav-item,.side-category,.side-dock-item){position:relative;justify-content:center}
+.native-app.sidebar-collapsed .side-nav-item{width:44px}
+.native-app.sidebar-collapsed .side-category{display:flex;width:44px}
+.native-app.sidebar-collapsed :is(.side-nav-label,.side-category>span:nth-child(2),.side-dock-item>span){display:block;position:absolute;left:calc(100% + 12px);top:50%;z-index:9;padding:7px 14px;border-radius:999px;background:var(--pill);color:var(--ink);font-size:13px;font-weight:500;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-6px,-50%);text-shadow:none;transition:opacity .2s ease,transform .22s cubic-bezier(.2,.75,.2,1)}
+.native-app.sidebar-collapsed :is(.side-nav-item:is(:hover,:focus-visible) .side-nav-label,.side-category:is(:hover,:focus-visible)>span:nth-child(2),.side-dock-item:is(:hover,:focus-visible)>span){opacity:1;transform:translate(0,-50%);text-shadow:none}
+.native-app.sidebar-collapsed .side-nav-rule{display:none}
+.native-app.sidebar-collapsed .side-nav-item[aria-current=page]{border-radius:50%;background:rgba(243,244,250,.12)}
+.native-app.sidebar-collapsed .side-dock-item[aria-current=page]{border-radius:50%}
+.native-app.sidebar-collapsed .side-category-list,.native-app.sidebar-collapsed .side-categories{overflow:visible}
+:root[data-reduced="true"] .native-app :is(.side-nav-label,.side-category>span,.side-dock-item>span,.side-nav-rule){transition:none!important}
+:root[data-reduced="true"] .native-app:not(.sidebar-collapsed) :is(.side-nav-label,.side-category>span:nth-child(2),.side-dock-item>span){transform:none!important}
+:root[data-reduced="true"] .native-app.sidebar-collapsed :is(.side-nav-label,.side-category>span:nth-child(2),.side-dock-item>span){transform:translate(0,-50%)!important}
+
+/* 軌道 | リスト: one switch, fixed at the bottom centre for both views; the white knob slides. */
+.native-app .notes-view-switch{position:fixed;left:50%;bottom:22px;z-index:8;width:176px;height:52px;padding:4px;transform:translateX(-50%)}
+.native-app .orbit-views-knob{position:absolute;top:4px;left:4px;width:calc(50% - 4px);height:44px;border-radius:999px;background:var(--ink);transition:transform .38s cubic-bezier(.2,.75,.2,1)}
+.native-app .orbit-views[data-view=list] .orbit-views-knob{transform:translateX(100%)}
+.native-app .notes-view-switch button{position:relative;display:grid;place-items:center;min-height:44px;background:none;color:var(--ink);transition:color .3s ease}
+.native-app .notes-view-switch button[aria-pressed=true]{background:none;color:var(--ink-on-grey)}
+.native-app .notes-view-switch svg{width:20px;height:20px}
+:root[data-reduced="true"] .orbit-views-knob{transition:none}
+
+/* Screen changes (View Transitions). The field never moves; only the screen content does. */
+:root[data-transition=page] .native-app .main{view-transition-name:pure-page}
+:root[data-transition=page] .native-app .sidebar{view-transition-name:pure-side}
+:root:is([data-transition=page-wide],[data-transition^=slide]) .native-app .workspace-body{view-transition-name:pure-page}
+.native-app .notes-view-switch{view-transition-name:pure-view-switch}
+::view-transition-old(root){display:none}
+::view-transition-new(root){animation:none}
+::view-transition-group(pure-page),::view-transition-group(pure-side),::view-transition-group(pure-view-switch){animation:none}
+::view-transition-old(pure-side),::view-transition-new(pure-side),::view-transition-old(pure-view-switch),::view-transition-new(pure-view-switch){animation:none}
+::view-transition-old(pure-view-switch){display:none}
+:root:is([data-transition=page],[data-transition=page-wide])::view-transition-old(pure-page){animation:pure-leave 120ms cubic-bezier(.4,0,1,1) both}
+:root:is([data-transition=page],[data-transition=page-wide])::view-transition-new(pure-page){animation:pure-enter 240ms cubic-bezier(.2,.75,.2,1) 100ms both}
+@keyframes pure-leave{to{opacity:0;transform:translateY(-4px)}}
+@keyframes pure-enter{from{opacity:0;transform:translateY(8px)}}
+/* 軌道 → リスト moves the screen left, リスト → 軌道 moves it right. */
+:root[data-transition=slide-left]::view-transition-old(pure-page){animation:pure-out-left 420ms cubic-bezier(.65,0,.35,1) both}
+:root[data-transition=slide-left]::view-transition-new(pure-page){animation:pure-in-right 420ms cubic-bezier(.65,0,.35,1) both}
+:root[data-transition=slide-right]::view-transition-old(pure-page){animation:pure-out-right 420ms cubic-bezier(.65,0,.35,1) both}
+:root[data-transition=slide-right]::view-transition-new(pure-page){animation:pure-in-left 420ms cubic-bezier(.65,0,.35,1) both}
+@keyframes pure-out-left{to{opacity:0;transform:translateX(-36%)}}
+@keyframes pure-in-right{from{opacity:0;transform:translateX(36%)}}
+@keyframes pure-out-right{to{opacity:0;transform:translateX(36%)}}
+@keyframes pure-in-left{from{opacity:0;transform:translateX(-36%)}}
+
+.native-app .settings-model-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px}
+.native-app .settings-new-models{font-family:var(--font-mono);font-size:12px;color:var(--connected)}
+.native-app .settings-row-copy .ui-details-content p{white-space:pre-line}
+.native-app .memory-detail-footer .ui-details>summary{white-space:normal}
+
+/* Captured excerpts: quoted text with its source, kept apart from the user's own words. */
+.native-app .original-excerpt{margin:12px 0;padding:10px 12px 12px 16px;border-left:2px solid rgba(120,150,255,.95);border-radius:4px 14px 14px 4px;background:rgba(243,244,250,.05);font-size:15px;line-height:1.7;white-space:pre-wrap}
+.native-app .original-excerpt small{display:block;margin-bottom:4px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .original-source{margin:0 0 12px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted)}
+.native-app .settings-row-control input:not([type=checkbox]){width:260px;min-height:44px;padding:0 14px}
+.native-app .article-read-state{margin:8px 0 0;color:var(--ink-muted);font-size:13px}
+.native-app .article-body .ui-details-content p{white-space:pre-wrap;font-size:13px;line-height:1.7}
+
+/* News: the words that are sent, then what came back, newest first. Everything sits on slabs. */
+.native-app .news-page>section,.native-app .news-topics{margin:4px 0 18px;padding:20px 24px;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .news-topics-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.native-app .news-topics-head h3{margin:0;color:var(--ink);font-family:var(--font-text);font-size:15px;font-weight:600}
+.native-app .news-topics-head p{margin:6px 0 0;color:var(--ink-muted);font-size:13px;line-height:1.7}
+.native-app .news-enable{display:flex;align-items:center;gap:10px;flex:none;color:var(--ink-muted);font-size:12px}
+.native-app .news-topic-list{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
+.native-app .news-topic{display:inline-flex;align-items:center;height:34px;border-radius:999px;background:var(--ink);color:var(--ink-on-grey)}
+.native-app .news-topic>button{height:100%;padding:0 6px 0 14px;border:0;background:none;color:inherit;font-family:var(--font-text);font-size:13px;font-weight:600}
+.native-app .news-topic .news-topic-remove{display:inline-flex;align-items:center;padding:0 10px 0 4px}
+.native-app .news-topic .news-topic-remove svg{width:12px;height:12px}
+.native-app .news-topic.is-off{background:none;color:var(--ink-muted);box-shadow:inset 0 0 0 1px var(--rule)}
+.native-app .news-topic.is-off>button:first-child{text-decoration:line-through}
+.native-app .news-topic-add{display:inline-flex;align-items:center;height:34px;padding:0 4px 0 14px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--rule)}
+.native-app .main .news-topic-add input{width:140px;min-height:0;height:30px;padding:0;border:0;background:none;box-shadow:none;color:var(--ink);font-size:13px}
+.native-app .news-topic-add button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:50%;background:none;color:var(--ink)}
+.native-app .news-topics .ui-details{margin-top:14px}
+.native-app .news-failures{margin:0 0 12px;padding:8px 16px;border-radius:999px;background:var(--pill);color:var(--ink-muted);font-size:12px}
+.native-app .news-list{padding:6px 24px 18px;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .news-item{display:grid;grid-template-columns:24px 64px minmax(0,1fr);align-items:start;padding:14px 0;border-bottom:1px solid var(--rule-faint)}
+.native-app .news-item>.ui-drop{margin-top:7px}
+.native-app .news-item>time{padding-top:3px;color:var(--ink-muted);font-family:var(--font-mono);font-size:12px}
+.native-app .news-item-title{display:block;padding:0;border:0;background:none;color:var(--ink);font-family:var(--font-text);font-size:15px;font-weight:500;line-height:1.6;text-align:left;cursor:pointer}
+.native-app .news-item-title:hover{text-decoration:underline;text-underline-offset:3px}
+.native-app .news-item-original{margin:2px 0 0;color:var(--ink-muted);font-size:12px;line-height:1.6}
+.native-app .news-item-summary{margin:4px 0 0;color:var(--ink);font-size:13px;line-height:1.7}
+.native-app .news-item small{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px}
+.native-app .news-kind{display:inline-flex;align-items:center;height:18px;padding:0 8px;border-radius:999px;box-shadow:inset 0 0 0 1px var(--rule);color:var(--ink);font-family:var(--font-text);font-size:11px}
+.native-app .news-discussion{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:var(--ink);font-size:11px}
+.native-app .news-discussion svg{width:11px;height:11px}
+.native-app .news-empty{padding:32px 24px;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow);color:var(--ink)}
+.native-app .news-empty svg{width:16px;height:16px;color:var(--ink-muted)}
+.native-app .news-empty h3{margin:10px 0 6px;font-family:var(--font-display);font-size:24px;font-weight:600}
+.native-app .news-empty p{margin:0;color:var(--ink-muted);font-size:14px}
+.native-app .news-note{margin:12px 0 0;color:var(--ink-muted);font-size:13px}
+/* Words found in the notes carry a drop; pressing one shows why, with the notes behind it. */
+.native-app .news-topic.is-memo>button:first-child{display:inline-flex;align-items:center;gap:8px}
+.native-app .news-topic.is-memo>button:first-child::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ink-on-grey);opacity:.55}
+.native-app .news-topic-english{opacity:.6;font-weight:500}
+.native-app .news-topic.is-related{background:none;color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink-muted)}
+.native-app .news-topic-kicker{margin-right:6px;color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;font-weight:500}
+.native-app .news-why-source{color:var(--ink-muted)!important;font-size:12px!important}
+.native-app .news-group-from{margin-left:10px;color:var(--ink-muted);font-size:12px;font-weight:500}
+.native-app .news-topic.is-open{box-shadow:0 0 0 2px rgba(243,244,250,.35)}
+.native-app .news-why{margin-top:14px;padding:14px 16px;border-radius:18px;background:rgba(243,244,250,.05)}
+.native-app .news-why strong{color:var(--ink);font-size:14px;font-weight:600}
+.native-app .news-why p{margin:6px 0 0;color:var(--ink);font-size:13px;line-height:1.7}
+.native-app .news-why-evidence{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.native-app .news-why-evidence button{max-width:100%;padding:0;border:0;background:none;color:var(--ink-muted);font-size:12px;line-height:1.6;text-align:left;overflow-wrap:anywhere;cursor:pointer}
+.native-app .news-why-evidence button:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.native-app .news-note{margin:12px 0 0;color:var(--ink-muted);font-size:13px}
+.native-app .news-blocked{margin-top:12px}
+.native-app .news-view-switch{display:flex;gap:8px;margin:0 0 12px}
+.native-app .news-view-switch button{height:30px;padding:0 14px;border:0;border-radius:999px;background:none;box-shadow:inset 0 0 0 1px var(--rule);color:var(--ink-muted);font-family:var(--font-text);font-size:12px;font-weight:600}
+.native-app .news-view-switch button[aria-pressed=true]{background:var(--ink);box-shadow:none;color:var(--ink-on-grey)}
+.native-app .news-groups{display:grid;gap:14px}
+.native-app .news-group{padding:16px 24px 12px;border-radius:28px;background:var(--slab);box-shadow:var(--slab-shadow)}
+.native-app .news-group>header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.native-app .news-group h3{margin:0;color:var(--ink);font-family:var(--font-text);font-size:16px;font-weight:600}
+.native-app .news-group>header small{color:var(--ink-muted);font-family:var(--font-mono);font-size:11px}
+.native-app .news-group-quiet{margin:8px 0 4px;color:var(--ink-muted);font-size:13px}
+.native-app .news-group .news-item:last-of-type{border-bottom:0}
+.native-app .news-quiet-words{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0;padding:14px 24px;border-radius:999px;background:var(--pill);color:var(--ink-muted);font-size:12px}
+.native-app .news-quiet-words span{color:var(--ink)}
+.native-app .news-group-more{margin:4px 0 6px;padding:6px 0;color:var(--ink-muted);font-size:12px}
+.native-app .news-blocked .ui-details-content{display:flex;flex-wrap:wrap;gap:12px}
+.native-app .news-blocked .ui-details-content span{display:inline-flex;align-items:center;gap:6px;color:var(--ink-muted);font-size:12px}
+/* AI usage at the bottom of the sidebar */
+.native-app .ai-usage{position:relative;margin-top:2px}
+.native-app .ai-usage-summary{display:flex;align-items:flex-start;gap:10px;width:100%;padding:8px 14px;border:0;border-radius:18px;background:none;color:var(--ink);text-align:left;cursor:pointer}
+.native-app .ai-usage-summary:hover,.native-app .ai-usage-summary[aria-expanded=true]{background:rgba(243,244,250,.08)}
+.native-app .ai-usage-icon{flex:none;width:14px;height:14px;margin-top:2px;color:var(--ink-muted)}
+.native-app .ai-usage-rows{display:grid;gap:6px;min-width:0;flex:1}
+.native-app .ai-usage-row{display:grid;gap:3px}
+.native-app .ai-usage-row b{font-family:var(--font-text);font-size:12px;font-weight:600}
+.native-app .ai-usage-window{display:grid;grid-template-columns:34px minmax(0,1fr) 34px;align-items:center;gap:6px}
+.native-app .ai-usage-window small,.native-app .ai-usage-unknown{color:var(--ink-muted);font-family:var(--font-mono);font-size:10px}
+.native-app .ai-usage-window em,.native-app .ai-usage-detail em{color:var(--ink);font-family:var(--font-mono);font-size:10px;font-style:normal;text-align:right}
+.native-app .ai-usage-bar{position:relative;display:block;height:4px;border-radius:999px;background:rgba(243,244,250,.12);overflow:hidden}
+.native-app .ai-usage-bar i{position:absolute;inset:0 auto 0 0;border-radius:inherit;background:var(--ink)}
+.native-app .ai-usage-bar i[data-level=mid]{background:#e6c36a}
+.native-app .ai-usage-bar i[data-level=high]{background:#ec8a7c}
+.native-app .ai-usage-panel{position:absolute;left:0;bottom:calc(100% + 10px);z-index:30;width:340px;max-height:min(72vh,620px);overflow:auto;padding:16px 18px;border-radius:24px;background:#05050b;box-shadow:var(--slab-shadow),0 0 0 1px var(--rule)}
+.native-app .ai-usage-panel header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.native-app .ai-usage-panel h3{margin:0;color:var(--ink);font-family:var(--font-text);font-size:15px;font-weight:600}
+.native-app .ai-usage-refresh{display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink-muted)}
+.native-app .ai-usage-refresh:hover{background:rgba(243,244,250,.08);color:var(--ink)}
+.native-app .ai-usage-provider,.native-app .ai-usage-mine{padding:12px 0;border-top:1px solid var(--rule-faint)}
+.native-app .ai-usage-provider-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.native-app .ai-usage-provider-head strong{color:var(--ink);font-size:13px;font-weight:600}
+.native-app .ai-usage-provider-head>small{color:var(--ink-muted);font-family:var(--font-mono);font-size:10px}
+.native-app .ai-usage-current{padding:1px 8px;border-radius:999px;background:var(--ink);color:var(--ink-on-grey);font-size:10px;font-weight:600}
+.native-app .ai-usage-detail{display:grid;grid-template-columns:44px minmax(0,1fr) 36px;align-items:center;gap:8px;margin:6px 0 0;color:var(--ink);font-size:12px}
+.native-app .ai-usage-detail small{grid-column:2/4;color:var(--ink-muted);font-size:11px}
+.native-app .ai-usage-note{margin:6px 0 0;color:var(--ink-muted);font-size:11px;line-height:1.6}
+.native-app .ai-usage-note.is-alert{color:#ec8a7c}
+.native-app .ai-usage-range{display:inline-flex;gap:4px;margin-left:auto}
+.native-app .ai-usage-range button{height:24px;padding:0 10px;white-space:nowrap;border:0;border-radius:999px;background:none;box-shadow:inset 0 0 0 1px var(--rule);color:var(--ink-muted);font-size:11px}
+.native-app .ai-usage-range button[aria-pressed=true]{background:var(--ink);box-shadow:none;color:var(--ink-on-grey)}
+.native-app .ai-usage-totals{margin:0 0 6px;color:var(--ink);font-size:12px}
+.native-app .ai-usage-mine ul{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.native-app .ai-usage-mine li{display:grid;grid-template-columns:minmax(0,1fr) 48px 44px;gap:8px;color:var(--ink);font-size:12px}
+.native-app .ai-usage-mine li small{color:var(--ink-muted);font-family:var(--font-mono);font-size:11px;text-align:right}
+.native-app.sidebar-collapsed .ai-usage-rows{display:none}
+.native-app.sidebar-collapsed .ai-usage-summary{justify-content:center;padding:10px 0}
+.native-app .ai-usage.is-compact{margin:0}
+.native-app .ai-usage-compact{position:relative;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink)}
+.native-app .ai-usage-compact:hover,.native-app .ai-usage-compact[aria-expanded=true]{background:rgba(243,244,250,.08)}
+.native-app .ai-usage-compact svg{width:18px;height:18px}
+.native-app .ai-usage-compact[data-level=mid]::after,.native-app .ai-usage-compact[data-level=high]::after{content:'';position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:#e6c36a}
+.native-app .ai-usage-compact[data-level=high]::after{background:#ec8a7c}
+.native-app .timeline-more{display:flex;justify-content:center;padding:18px 0 8px}
+.native-app .timeline-more .text-button{color:var(--ink-muted);font-size:12px}
+/* What pure. is doing, at the bottom of the sidebar */
+.native-app .side-activity{display:grid;gap:4px;width:100%;margin-top:2px;padding:8px 14px;border:0;border-radius:18px;background:none;color:var(--ink);text-align:left;cursor:pointer}
+.native-app .side-activity:hover{background:rgba(243,244,250,.08)}
+.native-app .side-activity-head{display:flex;align-items:center;gap:10px;font-family:var(--font-text);font-size:12px}
+.native-app .side-activity-head svg{width:14px;height:14px;color:var(--ink-muted)}
+.native-app .side-activity.is-busy .side-activity-head svg,.native-app .side-activity-compact.is-busy svg{animation:side-activity-spin 1.6s linear infinite;color:var(--ink)}
+.native-app .side-activity-head b{font-weight:600}
+.native-app .side-activity-task{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:8px;padding-left:24px;min-width:0}
+.native-app .side-activity-task time{color:var(--ink-muted);font-size:10px}
+.native-app .side-activity-title{overflow:hidden;font-size:12px;white-space:nowrap;text-overflow:ellipsis}
+.native-app .side-activity-title em{margin-left:6px;color:var(--ink-muted);font-style:normal}
+.native-app .side-activity small{display:block;padding-left:24px;overflow:hidden;color:var(--ink-muted);font-family:var(--font-mono);font-size:10px;line-height:1.5;white-space:nowrap;text-overflow:ellipsis}
+.native-app .side-activity-failed{color:#ec8a7c!important}
+.native-app .side-activity-compact{position:relative;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:none;color:var(--ink-muted)}
+.native-app .side-activity-compact:hover{background:rgba(243,244,250,.08)}
+.native-app .side-activity-compact svg{width:16px;height:16px}
+.native-app .side-activity-compact b{position:absolute;top:6px;right:5px;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:var(--ink);color:var(--ink-on-grey);font-size:9px;line-height:15px}
+.native-app.sidebar-collapsed .side-activity>:not(.side-activity-head){display:none}
+.native-app.sidebar-collapsed .side-activity-head b{display:none}
+.native-app.sidebar-collapsed .side-activity{justify-items:center;padding:10px 0}
+@keyframes side-activity-spin{to{transform:rotate(360deg)}}
+:root[data-reduced="true"] .native-app .side-activity-head svg,:root[data-reduced="true"] .native-app .side-activity-compact svg{animation:none}
+/* Asking before many existing notes are read with AI */
+.native-app .backfill-backdrop,.backfill-backdrop{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:24px;background:rgba(2,2,8,.62)}
+.backfill-dialog{width:min(520px,100%);padding:28px 30px 24px;border-radius:28px;background:#05050b;box-shadow:0 0 0 1px var(--rule),0 30px 80px rgba(0,0,0,.5);color:var(--ink)}
+.backfill-dialog h2{margin:0 0 10px;font-family:var(--font-text);font-size:19px;font-weight:600;line-height:1.5}
+.backfill-dialog p{margin:0;color:var(--ink-muted);font-size:13px;line-height:1.75}
+.backfill-options{display:grid;gap:10px;margin:20px 0 14px}
+.backfill-options>button.primary,.backfill-options>button.secondary{display:flex;align-items:baseline;justify-content:space-between;gap:12px;width:100%;padding:14px 18px;border-radius:18px;text-align:left}
+.backfill-options strong{font-size:14px;font-weight:600}
+.backfill-options small{font-family:var(--font-mono);font-size:11px;opacity:.8}
+.backfill-options>.text-button{justify-self:center;padding:6px 12px;color:var(--ink-muted)}
+.backfill-dialog .backfill-note{font-size:11px}
+.native-app .backfill-status{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;padding:12px 16px;border-radius:18px;background:rgba(243,244,250,.05)}
+.native-app .backfill-status p{margin:0;color:var(--ink);font-size:13px}

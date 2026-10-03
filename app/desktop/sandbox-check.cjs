@@ -6,7 +6,8 @@ const { CodexClient, PROFILE } = require('./codex.cjs');
 
 async function main() {
   const blocked = mkdtempSync(path.join(os.tmpdir(), 'pure-blocked-'));
-  const client = new CodexClient();
+  // Same isolated Codex folder setup as the app.
+  const client = new CodexClient({ codexHome: mkdtempSync(path.join(os.tmpdir(), 'pure-sandbox-codex-')) });
   const allowed = client.directory;
   const allowedText = 'PURE_ALLOWED_SYNTHETIC_FILE';
   const blockedText = 'PURE_BLOCKED_SYNTHETIC_CANARY';

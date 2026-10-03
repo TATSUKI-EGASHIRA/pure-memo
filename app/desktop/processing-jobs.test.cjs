@@ -1,5 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const {verifying}=require('./test-helpers.cjs');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
@@ -99,11 +100,11 @@ test('a late digest result after cancel and immediate retry saves only the new a
   try{
     let started,release,calls=0;
     const beginning=new Promise(resolve=>started=resolve);
-    worker=new DigestWorker(store,{generate:async({prompt})=>{
+    worker=new DigestWorker(store,verifying({generate:async({prompt})=>{
       calls++;
       if(calls===1){started();return new Promise(resolve=>release=()=>resolve(digestAnswer(prompt)));}
       return digestAnswer(prompt);
-    }},noClassifier);
+    }}),noClassifier);
     const draining=worker.drain();await beginning;
     const old=store.processingJobs().find(job=>job.kind==='digest');
     store.updateProcessingJob({...old,action:'cancel'});worker.cancel(old.id,old.token);
@@ -180,7 +181,7 @@ test('rapidly turning processing off and back on cannot strand an aborted runnin
         if(calls===1){started();return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(abortError()),{once:true}));}
         return kind==='digest'?digestAnswer(prompt):{categoryIds:[]};
       }};
-      worker=kind==='classification'?new Classifier(store,ai):new DigestWorker(store,ai,noClassifier);
+      worker=kind==='classification'?new Classifier(store,ai):new DigestWorker(store,verifying(ai),noClassifier);
       const draining=worker.drain();await beginning;
       worker.stop();worker.start();await draining;
       assert.equal(store.processingJobs().filter(job=>job.kind===kind&&job.state==='running').length,0);

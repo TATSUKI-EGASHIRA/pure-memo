@@ -8,7 +8,8 @@ const {promptFor,validateResult}=require('../desktop/analysis.cjs');
 
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'pure-ask-answer-eval-'));
 const store=new Store(path.join(dir,'pure.sqlite'));
-const ai=new CodexClient();
+// Evals use a throwaway Codex folder, so a personal Codex setup cannot change the results.
+const ai=new CodexClient({codexHome:fs.mkdtempSync(path.join(os.tmpdir(),'pure-eval-codex-'))});
 const source={
   jazz:store.saveNote({text:'ジャズは好きではない。'}),
   quote:store.saveNote({text:'読んだ記事に「仕事を辞めたい」と書いてあった。これは筆者の意見で、私はそう思っていない。'}),

@@ -549,3 +549,36 @@ test('image attachment survives backup and restore, follows trash and permanent 
     assert.equal(store.db.prepare('SELECT count(*) AS count FROM attachments').get().count,0);
   }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+test('listed notes show the current category links and the waiting classification',()=>{
+  const {dir,store}=fresh();
+  try{
+    const music=store.createCategory('music');
+    const film=store.createCategory('film');
+    const note=store.saveNote({text:'ハナレグミの発光体好き',model:'test'});
+    const plain=store.saveNote({text:'分類しないメモ'});
+    const listed=id=>store.listNotes().find(item=>item.id===id);
+    assert.deepEqual(listed(note.id).categoryIds,[]);
+    assert.equal(listed(note.id).classificationState,'pending');
+    assert.equal(listed(plain.id).classificationState,null);
+    const job=store.nextClassificationJob();
+    assert.equal(store.markClassificationRunning(job.noteId,job.revisionId),true);
+    assert.equal(listed(note.id).classificationState,'running');
+    assert.equal(store.applyClassification(job,[music.id,film.id]),true);
+    assert.deepEqual(listed(note.id).categoryIds,[film.id,music.id].sort());
+    assert.equal(listed(note.id).classificationState,'done');
+    store.archiveCategory(film.id);
+    assert.deepEqual(listed(note.id).categoryIds,[music.id]);
+    store.saveNote({id:note.id,text:'ハナレグミの発光体が好き',model:'test'});
+    assert.equal(listed(note.id).classificationState,'pending');
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
+test('reasoning effort is stored for every Codex turn and rejects odd values',()=>{
+  const {dir,store}=fresh();
+  try{
+    assert.equal(store.reasoningEffort(),'');
+    assert.equal(store.reasoningEffort('high'),'high');
+    assert.equal(store.reasoningEffort(),'high');
+    assert.throws(()=>store.reasoningEffort('high; drop'));
+    assert.equal(store.reasoningEffort(''),'');
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});

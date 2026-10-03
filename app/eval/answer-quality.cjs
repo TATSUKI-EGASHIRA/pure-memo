@@ -11,7 +11,8 @@ const model=process.env.PURE_EVAL_MODEL||'gpt-6-luna';
 const output=path.join(__dirname,'results',live?'answer-quality-report.json':'answer-quality-prepared.json');
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'pure-answer-quality-'));
 const store=new Store(path.join(directory,'pure.sqlite'));
-const ai=live?new CodexClient():null;
+// Evals use a throwaway Codex folder, so a personal Codex setup cannot change the results.
+const ai=live?new CodexClient({codexHome:path.join(directory,'codex')}):null;
 
 const sources={
   jazzOld:store.saveNote({text:'去年はジャズが苦手だった。複雑な音で疲れた。',sourceKind:'thought'}),

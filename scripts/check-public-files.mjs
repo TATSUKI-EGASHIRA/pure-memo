@@ -10,7 +10,7 @@ const tracked = new Set(splitPaths(git(['ls-files', '--cached', '-z'])));
 const candidates = [...new Set(splitPaths(git(['ls-files', '--cached', '--others', '--exclude-standard', '-z'])))].sort();
 const findings = [];
 const report = (file, reason) => findings.push(`${file}: ${reason}`);
-const forbiddenPath = /(?:^|\/)(?:node_modules|dist|coverage|\.dev-data|backups|\.codex|\.claude|\.agents|\.aws|\.ssh|\.idea|\.vscode)(?:\/|$)|^docs\/internal\/|^local\/|^app\/eval\/results\/|^app\/native\/embedding-helper$|(?:^|\/)(?:\.DS_Store|auth\.json|credentials\.json|tokens\.json)$|\.(?:sqlite(?:-[^/]*)?|db(?:-[^/]*)?|db3|pem|key|p12|pfx|dmg|zip|log|tsbuildinfo)$|\.app(?:\/|$)|^app\/eval\/(?:.*-(?:report|prepared)|memory-baseline)\.json$/i;
+const forbiddenPath = /(?:^|\/)(?:node_modules|dist|coverage|\.dev-data|backups|\.codex|\.claude|\.agents|\.aws|\.ssh|\.idea|\.vscode)(?:\/|$)|^docs\/internal\/|^local\/|^app\/eval\/results\/|^app\/native\/(?:embedding|context)-helper$|(?:^|\/)(?:\.DS_Store|auth\.json|credentials\.json|tokens\.json)$|\.(?:sqlite(?:-[^/]*)?|db(?:-[^/]*)?|db3|pem|key|p12|pfx|dmg|zip|log|tsbuildinfo)$|\.app(?:\/|$)|^app\/eval\/(?:.*-(?:report|prepared)|memory-baseline)\.json$/i;
 const contentPatterns = [
   ['秘密鍵', /-{5}BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-{5}/],
   ['既知の認証トークン', /\b(?:sk-(?:proj-|ant-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{20,})\b/],

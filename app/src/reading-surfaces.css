@@ -17,11 +17,11 @@
   padding-left:20px;padding-right:20px;
   border-bottom-color:var(--reading-line);
 }
-.native-app .native-hero h2{color:var(--reading-ink);font-weight:550}
+.native-app .native-hero h2{color:var(--reading-ink);font-weight:500}
 .native-app .native-hero p{color:var(--reading-muted)}
 .native-app .note-compose-section h1{
   display:table;padding:8px 12px;margin-bottom:14px;
-  background:var(--reading-surface);border-radius:4px;color:var(--reading-ink);font-weight:550;
+  background:var(--reading-surface);border-radius:4px;color:var(--reading-ink);font-weight:500;
 }
 .native-app .workspace-compose{
   background:var(--reading-secondary);border-color:var(--reading-line);

@@ -51,3 +51,29 @@ test('cancellation while turn startup is pending interrupts after the turn ID ar
     assert.equal(client.turns.size,0);
   }finally{client.stop();}
 });
+
+test('the model catalog is read page by page and only advertised efforts are sent',async()=>{
+  const client=new CodexClient();
+  const calls=[];
+  client.start=async()=>{};
+  client.request=async(method,params)=>{
+    calls.push({method,params});
+    if(method==='model/list')return params.cursor?{data:[{model:'new-model',displayName:'New',description:'',isDefault:false,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'low',description:''}],defaultReasoningEffort:'low'}],nextCursor:null}
+      :{data:[{model:'base',displayName:'Base',description:'d',isDefault:true,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'medium',description:''},{reasoningEffort:'high',description:'deep'}],defaultReasoningEffort:'medium'}],nextCursor:'page-2'};
+    if(method==='thread/start')return {thread:{id:'t'}};
+    if(method==='turn/start')return {turn:{id:`turn-${calls.length}`,status:'inProgress'}};
+    return {};
+  };
+  const models=await client.models();
+  assert.deepEqual(models.map(m=>m.model),['base','new-model']);
+  assert.deepEqual(models[0].efforts.map(e=>e.effort),['medium','high']);
+  assert.equal(models[1].defaultEffort,'low');
+  client.reasoningEffort=()=>'high';
+  assert.equal(client.effortFor('base'),'high');
+  assert.equal(client.effortFor('new-model'),null);
+  assert.equal(client.effortFor('base','bad value'),null);
+  client.generate({model:'base',prompt:'x'}).catch(()=>{});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(calls.find(c=>c.method==='turn/start').params.effort,'high');
+  client.failAll(new Error('done'));
+});

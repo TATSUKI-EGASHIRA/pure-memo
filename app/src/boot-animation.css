@@ -7,7 +7,7 @@
 .boot-particle:nth-last-child(3n){animation-delay:160ms}
 .boot-lockup{position:relative;display:flex;align-items:center;gap:17px;color:#edf4f2;transform:translateY(-2px);animation:boot-arrive 980ms cubic-bezier(.2,.7,.2,1) both}
 .boot-lockup svg{width:90px;height:60px;filter:drop-shadow(0 0 10px #dfedf070)}
-.boot-lockup span{font-size:clamp(25px,3vw,40px);font-weight:300;letter-spacing:.28em;padding-bottom:6px}
+.boot-lockup span{font-size:clamp(25px,3vw,40px);font-weight:400;letter-spacing:.28em;padding-bottom:6px}
 @keyframes boot-trace{to{stroke-dashoffset:0}}
 @keyframes boot-spark{0%,15%{opacity:0}50%{opacity:.85}100%{opacity:0}}
 @keyframes boot-arrive{0%,25%{opacity:0;transform:translateY(9px) scale(.95)}50%,77%{opacity:1;transform:translateY(-2px) scale(1)}100%{opacity:0;transform:translateY(-7px) scale(1.01)}}

@@ -75,7 +75,7 @@
 .native-app .note-card:active{transform:translateY(-1px) scale(.992);transition-duration:110ms}
 .native-app .note-card.selected{border-color:#d0e7e4ad;box-shadow:inset 0 0 0 1px #d7eded2b,0 15px 34px #07111b4a;background-color:#244656}
 .note-card-head,.note-card-kind,.note-card-foot{display:flex;align-items:center}
-.note-card-head{justify-content:space-between;gap:12px;width:100%;color:#a8c2cb;font:10px 'SFMono-Regular',Consolas,monospace;letter-spacing:.015em}
+.note-card-head{justify-content:space-between;gap:12px;width:100%;color:#a8c2cb;font:10px var(--font-mono);letter-spacing:.015em}
 .note-card-kind{gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .note-card-kind svg{width:13px;height:13px;color:#c2d8da}
 .native-app .note-card time{padding:0;color:#92aebb;white-space:nowrap;font:inherit}
@@ -86,7 +86,7 @@
 .note-card-thumbnail img{display:block;width:100%;height:100%;object-fit:cover}
 .note-card-thumbnail .image-loading{display:grid;place-items:center;width:100%;height:100%;padding:7px;text-align:center;font-size:9px;color:#8ca9b6}
 .note-card-article{display:flex;flex-direction:column;gap:6px;margin-top:16px;padding:11px 12px;border:1px solid #a7cbd233;background:#b6d8df0c;border-radius:4px;min-width:0}
-.note-card-article>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9dbbc5;font:9px 'SFMono-Regular',Consolas,monospace;letter-spacing:.06em}
+.note-card-article>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#9dbbc5;font:9px var(--font-mono);letter-spacing:.06em}
 .note-card-article strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#dbe9e9;font-size:12px;line-height:1.5;font-weight:500}
 .note-card-foot{justify-content:space-between;gap:12px;width:100%;margin-top:22px;padding-top:13px;border-top:1px solid #a4c3ca24;color:#93aeba;font-size:10px;letter-spacing:.025em}
 .note-card-foot>svg{width:14px;height:14px;transition:transform 320ms cubic-bezier(.16,1,.3,1);color:#bad2d8}

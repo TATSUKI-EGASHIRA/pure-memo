@@ -3,8 +3,9 @@ const {abortError}=require('./job-policy.cjs');
 // Guard immediately before uploading, as well as when the result arrives.
 class AnalysisExecutor{
   constructor(store,client){this.store=store;this.client=client;this.active=new Set();}
-  async generate({items,feedback=[],signal,...options}){
-    const contextRunIds=[...new Set(feedback.map(item=>item._runId).filter(Boolean))];
+  // contextRunIds: earlier runs whose output goes into this prompt (feedback, or a previous digest).
+  async generate({items,feedback=[],contextRunIds:extraRunIds=[],signal,...options}){
+    const contextRunIds=[...new Set([...feedback.map(item=>item._runId),...extraRunIds].filter(Boolean))];
     const controller=new AbortController();
     const operation={items,contextRunIds,controller};
     const forwardAbort=()=>controller.abort();

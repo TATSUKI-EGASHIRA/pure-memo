@@ -9,8 +9,10 @@
 # Installed dependencies and generated builds
 node_modules/
 dist/
+/app/release/
 coverage/
 /app/native/embedding-helper
+/app/native/context-helper
 *.log
 *.tsbuildinfo
 

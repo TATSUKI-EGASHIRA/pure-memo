@@ -17,9 +17,10 @@ test('saving queues classification without blocking, and unmatched notes stay in
     const vague=store.saveNote({text:'今日は少し考えた',model:'test-model'});
     assert.equal(store.classificationStatus().pending,2);
     assert.equal(store.notesFor('other').length,2);
-    const ai={generate:async({prompt,schema})=>{
-      assert.equal(schema.properties.categoryIds.type,'array');
-      return {categoryIds:prompt.includes('ピアノ')?[music.id]:[]};
+    const ai={generate:async({items,schema})=>{
+      assert.equal(schema.properties.notes.type,'array');
+      assert.equal(items.length,2,'notes without a link are read together');
+      return {notes:items.map(item=>({revisionId:item.revisionId,categoryIds:item.text.includes('ピアノ')?[music.id]:[],facts:[]}))};
     }};
     await new Classifier(store,ai).drain();
     assert.deepEqual(store.notesFor(music.id).map(n=>n.id),[piano.id]);
@@ -85,4 +86,29 @@ test('a running classification resumes after reopening the database',async()=>{
     assert.equal(reopened.notesFor(category.id).length,1);
     reopened.close();
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('batches are read three at a time, and stopping puts every batch in flight back in the queue',async()=>{
+  const {dir,store}=fresh();
+  try{
+    for(let i=0;i<24;i++)store.saveNote({text:`メモ ${i}`,model:'m'});
+    let inFlight=0,most=0;const release=[];
+    const ai={generate:async({prompt,signal})=>{
+      inFlight++;most=Math.max(most,inFlight);
+      await new Promise((resolve,reject)=>{release.push(resolve);signal?.addEventListener('abort',()=>reject(Object.assign(new Error('stop'),{name:'AbortError'})),{once:true});});
+      inFlight--;
+      return {notes:JSON.parse(prompt.slice(prompt.indexOf('notes: ')+7)).map(note=>({revisionId:note.revisionId,categoryIds:[],facts:[]}))};
+    }};
+    const classifier=new Classifier(store,ai);
+    const done=classifier.drain();
+    await new Promise(resolve=>setTimeout(resolve,20));
+    assert.equal(most,3,'three batches at once');
+    while(release.length)release.shift()();
+    await new Promise(resolve=>setTimeout(resolve,20));
+    classifier.stop();
+    await done;
+    const status=store.classificationStatus();
+    assert.equal(status.running,0,'nothing is left running');
+    assert.equal(status.pending+store.listNotes().filter(note=>note.classificationState==='done').length,24,'every note is either done or back in the queue');
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
 });

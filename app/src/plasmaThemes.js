@@ -11,7 +11,8 @@ export const PLASMA_THEMES=Object.freeze({
   Settings:{hue:2.65,color:'#304b83',name:'indigo'},
   Trash:{hue:.35,color:'#714037',name:'copper'},
 });
-export const plasmaThemeFor=page=>PLASMA_THEMES[page]||PLASMA_THEMES.Notes;
+// The glass workspace keeps every page on the Notes field so surfaces read as one app.
+export const plasmaThemeFor=()=>PLASMA_THEMES.Notes;
 // Rotate along the shorter arc, including pages across the 0 / 2π seam.
 export function approachHue(current,target,delta){
   const distance=Math.atan2(Math.sin(target-current),Math.cos(target-current));

@@ -53,3 +53,74 @@ test('article preview follows current revisions and never changes original text'
     worker.stop();
   }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+const zlib=require('node:zlib');
+const {extractArticleText,decodeBody,parseArticle}=require('./article-fetch.cjs');
+const {promptFor}=require('./analysis.cjs');
+
+test('the readable text of a page is extracted without its navigation and asides',()=>{
+  const html=`<html><head><script>var tracking=1</script><style>p{}</style></head><body>
+    <nav><ul><li>ホーム メニュー リンク一覧</li></ul></nav><header><p>サイトの共通ヘッダーです。長めの説明文がここに入ります。</p></header>
+    <article><h1>静かな音楽の話</h1><p><a href="/a">ハナレグミ</a>の<b>新譜</b>を聴いた。声の揺れが印象に残る。</p>
+    <p>二曲目は<ruby>発光体<rt>はっこうたい</rt></ruby>という曲で、ライブでも定番になっている。<sup class="reference">[1]</sup></p>
+    <aside><p>関連記事: ほかの記事へのリンクがここに並びます。</p></aside></article>
+    <footer><p>Copyright example media all rights reserved.</p></footer></body></html>`;
+  const text=extractArticleText(html);
+  assert.equal(text,'静かな音楽の話\n\nハナレグミの新譜を聴いた。声の揺れが印象に残る。\n\n二曲目は発光体という曲で、ライブでも定番になっている。');
+  const body='段落'.repeat(150);
+  assert.equal(extractArticleText(`<script type="application/ld+json">{"@graph":[{"@type":"Article","articleBody":"${body}"}]}</script><p>短い</p>`),body);
+  const parsed=parseArticle('<title>T</title><meta name="author" content="Ann"><meta property="article:published_time" content="2026-09-30"><article><p>This is a long enough paragraph of the article body text.</p></article>','https://example.com/a');
+  assert.deepEqual([parsed.title,parsed.author,parsed.publishedAt],['T','Ann','2026-09-30']);
+});
+
+test('compressed pages are decoded with a size cap',()=>{
+  const page=Buffer.from('<p>圧縮されたページの本文です。十分な長さがあります。</p>');
+  assert.equal(decodeBody(zlib.gzipSync(page),'gzip').toString(),page.toString());
+  assert.equal(decodeBody(zlib.brotliCompressSync(page),'br').toString(),page.toString());
+  assert.equal(decodeBody(zlib.deflateSync(page),'deflate').toString(),page.toString());
+  assert.throws(()=>decodeBody(zlib.gzipSync(Buffer.alloc(7*1024*1024)),'gzip'));
+  assert.throws(()=>decodeBody(page,'compress'));
+});
+
+test('the linked page text is kept, reaches AI as external material and sorting waits for it briefly',async()=>{
+  const {dir,store}=fresh();
+  try{
+    store.createCategory('music');
+    const note=store.saveNote({text:'これ良さそう https://example.com/live',model:'test'});
+    assert.equal(store.nextClassificationJob(),undefined);
+    const worker=new ArticleWorker(store,async()=>({title:'ライブ評',description:'短い説明',siteName:'Example',text:'記事の本文。'.repeat(50),author:'',publishedAt:''}));
+    worker.start();await worker.drain();worker.stop();
+    const listed=store.listNotes().find(item=>item.id===note.id);
+    assert.equal(listed.articleChars,300);
+    assert.equal(listed.articleText,undefined);
+    assert.equal(store.articleText(note.id).text.length,300);
+    const job=store.nextClassificationJob();
+    assert.equal(job.noteId,note.id);
+    assert.equal(job.article.title,'ライブ評');
+    const items=store.analysisNotesFor('all');
+    assert.equal(items[0].article.text.length,300);
+    const prompt=promptFor('ask',items,[],'どんなライブ？');
+    assert.match(prompt,/"article":\{"title":"ライブ評"/);
+    assert.match(prompt,/articleは、メモのURLからpureが取得したページの本文/);
+    assert.ok(store.searchableNotes()[0].article);
+  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('links saved before page text was kept are read again once',()=>{
+  const {dir,store}=fresh();
+  const file=path.join(dir,'pure.sqlite');
+  try{
+    const note=store.saveNote({text:'https://example.com/old'});
+    store.markArticlePreviewRunning(note.revisionId);
+    store.finishArticlePreview(note.revisionId,{title:'Old',description:'d',siteName:'s'});
+    store.db.exec("DELETE FROM app_state WHERE key='article_body_v1'");
+    store.close();
+    const reopened=new Store(file);
+    try{
+      assert.equal(reopened.listNotes()[0].articleStatus,'pending');
+      reopened.markArticlePreviewRunning(note.revisionId);reopened.finishArticlePreview(note.revisionId,{title:'Old',description:'d',siteName:'s',text:''});
+    }finally{reopened.close();}
+    const again=new Store(file);
+    try{assert.equal(again.listNotes()[0].articleStatus,'ready');}finally{again.close();}
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

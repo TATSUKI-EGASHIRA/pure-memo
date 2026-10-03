@@ -44,7 +44,8 @@ function retrievalReport(digestRows,label){
   return {digestKind:label,sourceBudget:budget,raw:score('raw'),hybrid:score('hybrid'),details};
 }
 async function liveReport(report){
-  const ai=new CodexClient({codexHome:process.env.CODEX_HOME});
+  // A throwaway Codex folder unless one is given, so a personal Codex setup cannot change the results.
+  const ai=new CodexClient({codexHome:process.env.CODEX_HOME||require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(),'pure-eval-codex-'))});
   try{
     const generated=[];
     for(const category of categories){

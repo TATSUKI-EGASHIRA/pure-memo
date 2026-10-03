@@ -1,0 +1,52 @@
+{
+ "at": "2026-10-02T06:35:39.980Z",
+ "model": "gpt-6.1-sol",
+ "effort": null,
+ "judge": {
+  "model": "gpt-6.1-sol",
+  "version": "judge@5dcdb18fb7"
+ },
+ "versions": {
+  "collection": "collection@9ce439f334",
+  "ask": "ask@0018df1b35",
+  "suggest": "suggest@9a6712dd97",
+  "memory": "memory@6e5228c83c",
+  "interests": "interests@c0e5a4de5d",
+  "classify": "classify@70970e23b3",
+  "classifyLink": "classify-link@4e87a1522b"
+ },
+ "tasks": {
+  "classify": {
+   "cases": 12,
+   "passed": 12,
+   "checks": 28,
+   "checksPassed": 28,
+   "claims": 0,
+   "supported": 0
+  },
+  "collection": {
+   "cases": 4,
+   "passed": 4,
+   "checks": 22,
+   "checksPassed": 22,
+   "claims": 31,
+   "supported": 31
+  },
+  "ask": {
+   "cases": 10,
+   "passed": 10,
+   "checks": 32,
+   "checksPassed": 32,
+   "claims": 16,
+   "supported": 16
+  },
+  "interests": {
+   "cases": 2,
+   "passed": 2,
+   "checks": 18,
+   "checksPassed": 18,
+   "claims": 0,
+   "supported": 0
+  }
+ }
+}

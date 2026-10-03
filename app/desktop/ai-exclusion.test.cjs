@@ -1,5 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const {verifying}=require('./test-helpers.cjs');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
@@ -128,7 +129,7 @@ test('running classification and digest discard excluded sources and continue wi
         assert.equal(prompt.includes(secret.text),false);
         return kind==='digest'?result(input):{categoryIds:[]};
       }});
-      worker=kind==='classification'?new Classifier(store,executor):new DigestWorker(store,executor,{idle:async()=>{}});
+      worker=kind==='classification'?new Classifier(store,executor):new DigestWorker(store,verifying(executor),{idle:async()=>{}});
       const draining=worker.drain();await beginning;
       store.setAiExcluded({id:secret.id,excluded:true});executor.cancelInvalid();release();await draining;
       assert.equal(store.processingJobs().some(job=>job.kind==='classification'&&job.id===secret.id),false);

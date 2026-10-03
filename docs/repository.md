@@ -4,6 +4,8 @@
 
 `app/` のソース、テスト、架空の評価入力、package.json・lockfile、公開用の `docs/`、`scripts/`、README、CONTRIBUTING、MIT LICENSEを公開します。アプリ内のSVG・CSS・Canvasによるロゴや演出もソースに含みます。
 
+`app/src/fonts/` にはSIL Open Font License 1.1のフォント（Shippori Mincho B1 600、IBM Plex Sans JP 400/500/600、DM Mono 400/500）をWOFF2で同梱し、各ライセンス文を同じフォルダに置きます。フォントにはMITではなくOFLが適用されます。公開前チェックはバイナリとして報告しますが、出典と利用権は確認済みです。
+
 依存ライブラリ本体は配布せず、`npm ci` で復元します。MITは本プロジェクトのコードに適用し、依存ライブラリのライセンスはそれぞれに従います。
 
 ## Gitから除外するもの

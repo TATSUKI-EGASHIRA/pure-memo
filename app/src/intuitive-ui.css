@@ -2,7 +2,7 @@
 .native-app .page-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;max-width:1000px;margin:28px auto 22px;min-width:0}
 .native-app .page-heading-title{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 24px 9px 12px;background:linear-gradient(90deg,var(--reading-surface) 75%,transparent);border:0;border-radius:3px}
 .native-app .page-heading-title>svg{width:18px;height:18px;flex-shrink:0;color:#bfd1dc}
-.native-app .page-heading h1{display:block;background:none;padding:0;margin:0;font-size:18px;font-weight:550;line-height:1.5;letter-spacing:0;color:var(--reading-ink)}
+.native-app .page-heading h1{display:block;background:none;padding:0;margin:0;font-size:18px;font-weight:500;line-height:1.5;letter-spacing:0;color:var(--reading-ink)}
 .page-heading-meta{font-size:11px;line-height:1.5;color:var(--reading-muted);white-space:nowrap;padding-left:5px;font-variant-numeric:tabular-nums}
 .page-heading-actions{display:flex;align-items:center;gap:10px;min-width:0}
 .native-app .note-compose-section{margin-top:32px;margin-bottom:28px}
@@ -13,7 +13,7 @@
 .native-app .native-tabs button{border-radius:5px;padding:8px 12px}
 .native-app .native-report-head{padding:0 0 16px}
 .native-app .native-report-head p{margin-bottom:0}
-.native-app .native-report-head h3,.native-app .category-manager-head h3,.native-app .builder-head h3{font-size:14px;font-weight:550;letter-spacing:0;margin:0}
+.native-app .native-report-head h3,.native-app .category-manager-head h3,.native-app .builder-head h3{font-size:14px;font-weight:500;letter-spacing:0;margin:0}
 .native-app .category-manager-head h3 small,.native-app .native-report-head h3 small{font-size:11px;color:var(--reading-muted);font-weight:400;margin-left:6px}
 .native-app .category-manager{margin-top:0}
 .native-app .category-manager-head{padding:0 0 16px}
