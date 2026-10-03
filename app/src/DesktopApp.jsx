@@ -144,6 +144,15 @@ function App(){
   const [aiSettings,setAiSettings]=useState({provider:'codex',lightModel:'',providers:[]}),aiSettingsRef=useRef({provider:'codex'});
   const [notesView,setNotesViewState]=useState(()=>localStorage.getItem('pure.notes.view')==='list'?'list':'orbit'),[orbitFreshId,setOrbitFreshId]=useState(null);
   const orbitInput=useRef(null);
+  // The sidebar leaves room for the dock as tall as it is (it grows with what is running).
+  const dockRef=useRef(null);
+  useEffect(()=>{
+    const dock=dockRef.current,sidebar=dock?.closest('.sidebar');
+    if(!dock||!sidebar||typeof ResizeObserver==='undefined')return;
+    const set=()=>sidebar.style.setProperty('--dock',`${Math.ceil(dock.getBoundingClientRect().height)}px`);
+    set();const observer=new ResizeObserver(set);observer.observe(dock);
+    return()=>observer.disconnect();
+  },[page==='Settings',page==='Notes'&&notesView==='orbit']);
   useEffect(()=>{localStorage.setItem('pure.notes.view',notesView)},[notesView]);
   const [sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem('pure.sidebar.collapsed')==='true');
   const [settingsCategory,setSettingsCategory]=useState('general'),[settingsQuery,setSettingsQuery]=useState('');
@@ -332,7 +341,7 @@ function App(){
       <div className="side-category-list">{categories.filter(c=>!['all','other'].includes(c.id)).map(c=><button key={c.id} className="side-category" aria-current={page==='Collections'&&category===c.id?'page':undefined} title={c.name} aria-label={t('{name} {count}件',{name:c.name,count:c.count})} onClick={()=>{setCategory(c.id);setPage('Collections');setSelected(null)}}><Drop size={7}/><span>{c.name}</span><small>{c.count}</small></button>)}</div>
       <button className="side-nav-item" aria-current={['Categories','Create Category'].includes(page)?'page':undefined} aria-label={t('カテゴリを管理')} title={t('カテゴリを管理')} onClick={()=>{setPage('Categories');setSelected(null)}}><span className="side-nav-number" aria-hidden="true">{String(navigation.length+1).padStart(2,'0')}</span><BookmarkIcon className="side-nav-icon" aria-hidden="true"/><span className="side-nav-rule" aria-hidden="true"/><span className="side-nav-label">{t('カテゴリを管理')}</span></button>
     </section>
-    <div className="side-dock"><button className="side-dock-item" aria-current={page==='Trash'?'page':undefined} aria-label={t('ごみ箱')} title={t('ごみ箱')} onClick={()=>{setPage('Trash');setSelected(null)}}><TrashIcon aria-hidden="true"/><span>{t('ごみ箱')}</span></button><button className="side-dock-item" aria-current={page==='Settings'?'page':undefined} aria-label={t('設定')} title={t('設定')} onClick={()=>{setPage('Settings');setSelected(null)}}><MixerHorizontalIcon aria-hidden="true"/><span>{t('設定')}</span></button><p className="side-storage"><i aria-hidden="true"/><span>{t('このMacに保存')}</span></p><SideActivity jobs={processingJobs} onOpen={openProcessing}/><AiUsageMeter/></div></>}
+    <div className="side-dock" ref={dockRef}><button className="side-dock-item" aria-current={page==='Trash'?'page':undefined} aria-label={t('ごみ箱')} title={t('ごみ箱')} onClick={()=>{setPage('Trash');setSelected(null)}}><TrashIcon aria-hidden="true"/><span>{t('ごみ箱')}</span></button><button className="side-dock-item" aria-current={page==='Settings'?'page':undefined} aria-label={t('設定')} title={t('設定')} onClick={()=>{setPage('Settings');setSelected(null)}}><MixerHorizontalIcon aria-hidden="true"/><span>{t('設定')}</span></button><p className="side-storage"><i aria-hidden="true"/><span>{t('このMacに保存')}</span></p><SideActivity jobs={processingJobs} onOpen={openProcessing}/><AiUsageMeter/></div></>}
   </aside>
   <HeadingTools.Provider value={page==='Settings'?<SettingsSearch value={settingsQuery} onChange={setSettingsQuery}/>:<div className="heading-tools">
     {page==='Notes'?<label className="tool-search"><MagnifyingGlassIcon aria-hidden="true"/><input className="native-search" aria-label={t('メモを検索')} placeholder={t('検索')} value={query} onChange={e=>setQuery(e.target.value)}/><kbd>⌘K</kbd></label>

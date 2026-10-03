@@ -57,11 +57,14 @@ export default function AiUsageMeter({compact=false}){
       data-level={highest>=90?'high':highest>=70?'mid':'low'}><BarChartIcon aria-hidden="true"/></button>
     :<button type="button" className="ai-usage-summary" aria-expanded={open} aria-label={t('AIの使用量')} title={t('AIの使用量')} onClick={()=>setOpen(!open)}>
       <BarChartIcon className="ai-usage-icon" aria-hidden="true"/>
-      <span className="ai-usage-rows">{shown.length?shown.map(provider=><span key={provider.id} className="ai-usage-row">
-        <b>{provider.name}</b>
-        {provider.windows.length?provider.windows.map(window=><span key={window.id} className="ai-usage-window"><small>{t(WINDOW_LABELS[window.id]||window.id)}</small><Bar value={window.usedPercent}/><em>{percent(window.usedPercent)}</em></span>)
-          :<small className="ai-usage-unknown">{t('未確認')}</small>}
-      </span>):<span className="ai-usage-row"><small className="ai-usage-unknown">{t('AI未接続')}</small></span>}</span>
+      {/* One line per account: its name, the 5-hour and weekly use, and a bar for the higher of the two. */}
+      <span className="ai-usage-rows">{shown.length?shown.map(provider=>{
+        const most=Math.max(0,...provider.windows.map(window=>window.usedPercent));
+        return <span key={provider.id} className="ai-usage-row" title={provider.windows.map(window=>`${t(WINDOW_LABELS[window.id]||window.id)} ${percent(window.usedPercent)}`).join(' · ')}>
+          <span className="ai-usage-line"><b>{provider.name}</b>{provider.windows.length?<em>{provider.windows.map(window=>percent(window.usedPercent)).join(' · ')}</em>:<small className="ai-usage-unknown">{t('未確認')}</small>}</span>
+          {provider.windows.length>0&&<Bar value={most}/>}
+        </span>;
+      }):<span className="ai-usage-row"><small className="ai-usage-unknown">{t('AI未接続')}</small></span>}</span>
     </button>}
     {open&&<div className="ai-usage-panel" role="dialog" aria-label={t('AIの使用量')}>
       <header><h3>{t('AIの使用量')}</h3><button type="button" className="ai-usage-refresh" onClick={()=>load(true)} disabled={loading} aria-label={t('更新')} title={t('更新')}><ReloadIcon/></button></header>
